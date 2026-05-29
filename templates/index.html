@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:            #0c0c0b;
+      --surface:       #131312;
+      --surface-hi:    #1a1a18;
+      --border:        #262622;
+      --border-dim:    #1c1c1a;
+      --border-bright: #38382f;
+      --text:          #ddd8c4;
+      --text-muted:    #6b6856;
+      --text-dim:      #3a3a35;
+      --accent:        #c8a84b;
+      --accent-bg:     #261f0e;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Loading bar ─────────────────────────────────────── */
+    #loading-bar {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 2px; z-index: 500; overflow: hidden;
+    }
+    #loading-bar.active::after {
+      content: '';
+      display: block; height: 100%; width: 35%;
+      background: var(--accent);
+      animation: sweep 1s ease-in-out infinite;
+    }
+    @keyframes sweep {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(360%); }
+    }
+
+    /* ── Header ──────────────────────────────────────────── */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+    }
+    .header-top {
+      display: flex; align-items: baseline; gap: 14px;
+      padding: 18px 0 12px;
+    }
+    .logo {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 21px;
+      color: var(--accent);
+      letter-spacing: -0.3px;
+    }
+    .logo-sub {
+      font-size: 10px; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-dim);
+    }
+    .header-stats {
+      margin-left: auto;
+      display: flex; gap: 22px;
+      font-size: 11px; color: var(--text-muted);
+    }
+    .header-stats strong { color: var(--text); font-weight: 500; }
+
+    /* ── Filter bar ──────────────────────────────────────── */
+    .filter-bar {
+      display: flex; gap: 10px;
+      padding: 10px 0 16px; align-items: center;
+    }
+    input[type="text"], select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 2px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus, select:focus {
+      border-color: var(--border-bright);
+    }
+    #search-input {
+      width: 320px;
+    }
+    #search-input::placeholder { color: var(--text-dim); }
+
+    select {
+      cursor: pointer; appearance: none; -webkit-appearance: none;
+      padding-right: 26px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%236b6856'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 9px center;
+    }
+
+    /* ── Table ───────────────────────────────────────────── */
+    .table-wrap { padding: 0 28px 60px; overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    thead th {
+      text-align: left;
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 12px 12px 10px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    thead th:first-child { padding-left: 0; width: 32px; }
+    thead th:last-child  { text-align: right; }
+
+    .job-row { cursor: pointer; }
+    .job-row:hover td   { background: var(--surface); }
+    .job-row.expanded td { background: var(--surface); }
+    .job-row td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-dim);
+      vertical-align: middle;
+      transition: background 0.1s;
+    }
+    .job-row td:first-child { padding-left: 0; width: 32px; }
+    .job-row td:last-child  { text-align: right; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+
+    .job-title   { font-weight: 500; }
+    .job-company { color: var(--text-muted); font-size: 12px; }
+    .job-loc     { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+
+    .expand-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 16px; height: 16px;
+      border: 1px solid var(--text-dim); border-radius: 2px;
+      font-size: 14px; line-height: 1; color: var(--text-dim);
+      transition: all 0.12s; user-select: none;
+    }
+    .job-row.expanded .expand-icon {
+      border-color: var(--accent); color: var(--accent);
+      background: var(--accent-bg);
+    }
+
+    /* ── Status select ───────────────────────────────────── */
+    .status-select {
+      font-size: 10px; font-weight: 500; letter-spacing: 0.07em;
+      text-transform: uppercase; border-radius: 2px;
+      padding: 3px 20px 3px 7px;
+      background-position: right 6px center;
+      background-size: 7px;
+      min-width: 88px;
+    }
+    .s-saved      { background-color:#4a8fa81a; color:#4a8fa8; border-color:#4a8fa830; }
+    .s-interested { background-color:#8b6cc41a; color:#8b6cc4; border-color:#8b6cc430; }
+    .s-applied    { background-color:#5aab721a; color:#5aab72; border-color:#5aab7230; }
+    .s-skipped    { background-color:#52504a1a; color:#52504a; border-color:#52504a30; }
+    .s-recruiter  { background-color:#c8a84b1a; color:#c8a84b; border-color:#c8a84b30; }
+    .s-follow-up  { background-color:#c26b4a1a; color:#c26b4a; border-color:#c26b4a30; }
+    /* make option text readable in dropdown */
+    .status-select option { background: #1a1a18; color: var(--text); }
+
+    /* ── Detail row ──────────────────────────────────────── */
+    .detail-row td { padding: 0; border-bottom: none; }
+    .detail-row.open td { border-bottom: 1px solid var(--border); }
+
+    .detail-inner {
+      overflow: hidden; max-height: 0;
+      transition: max-height 0.3s ease;
+    }
+    .detail-row.open .detail-inner { max-height: 650px; }
+
+    .detail-content {
+      display: grid; grid-template-columns: 1fr 1fr;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+    }
+
+    .detail-section { padding: 20px 24px 24px; }
+    .detail-section + .detail-section { border-left: 1px solid var(--border); }
+
+    .detail-label {
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-dim); margin-bottom: 12px;
+    }
+    .detail-field {
+      display: grid; grid-template-columns: 90px 1fr;
+      gap: 4px 10px; margin-bottom: 5px; font-size: 12px;
+    }
+    .df-key { color: var(--text-muted); }
+    .df-val { color: var(--text); word-break: break-all; }
+    .df-val a { color: var(--accent); text-decoration: none; }
+    .df-val a:hover { text-decoration: underline; }
+
+    /* ── Interactions ────────────────────────────────────── */
+    .ilist {
+      margin-bottom: 16px;
+      max-height: 160px; overflow-y: auto;
+    }
+    .iitem {
+      display: flex; gap: 10px; align-items: baseline;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border-dim);
+      font-size: 12px;
+    }
+    .iitem:last-child { border-bottom: none; }
+    .itype {
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--accent); white-space: nowrap; min-width: 110px;
+    }
+    .inote { color: var(--text-muted); flex: 1; }
+    .idate { color: var(--text-dim); white-space: nowrap; font-size: 11px; }
+    .no-interactions { color: var(--text-dim); font-size: 12px; padding: 6px 0; font-style: italic; }
+
+    .iform {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 8px; align-items: center;
+      margin-top: 4px;
+    }
+    .iform select, .iform input { font-size: 12px; }
+    .iform input::placeholder { color: var(--text-dim); }
+
+    /* ── Button ──────────────────────────────────────────── */
+    .btn {
+      background: var(--accent-bg); color: var(--accent);
+      border: 1px solid var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 6px 14px; border-radius: 2px;
+      cursor: pointer; transition: background 0.12s; white-space: nowrap;
+    }
+    .btn:hover { background: #3a2e0e; }
+
+    /* ── Empty / loading states ──────────────────────────── */
+    .state-row td {
+      text-align: center; padding: 60px 24px;
+      color: var(--text-dim); font-size: 12px;
+      border-bottom: none;
+    }
+
+    /* ── Toast ───────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 400;
+      background: var(--surface-hi);
+      border: 1px solid var(--border-bright);
+      color: var(--text); font-size: 12px;
+      padding: 9px 16px; border-radius: 3px;
+      transform: translateY(60px); opacity: 0;
+      transition: all 0.2s ease; pointer-events: none;
+    }
+    #toast.show          { transform: translateY(0); opacity: 1; }
+    #toast.toast-ok      { border-color: #5aab7250; color: #5aab72; }
+    #toast.toast-err     { border-color: #c26b4a50; color: #c26b4a; }
+
+    /* ── Scrollbar ───────────────────────────────────────── */
+    ::-webkit-scrollbar       { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<div id="loading-bar"></div>
+
+<div class="header">
+  <div class="header-top">
+    <span class="logo">Job Tracker</span>
+    <span class="logo-sub">linkedin capture</span>
+    <div class="header-stats" id="header-stats"></div>
+  </div>
+  <div class="filter-bar">
+    <input type="text" id="search-input" placeholder="search title, company, location…" autocomplete="off">
+    <select id="status-filter">
+      <option value="">All statuses</option>
+      <option value="saved">Saved</option>
+      <option value="interested">Interested</option>
+      <option value="applied">Applied</option>
+      <option value="recruiter">Recruiter</option>
+      <option value="follow-up">Follow-up</option>
+      <option value="skipped">Skipped</option>
+    </select>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Title</th>
+        <th>Company</th>
+        <th>Location</th>
+        <th>Status</th>
+        <th>Saved</th>
+      </tr>
+    </thead>
+    <tbody id="jobs-tbody">
+      <tr class="state-row"><td colspan="6">Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let allJobs = [];
+let filteredJobs = [];
+let expandedId = null;
+let searchTimer = null;
+
+const STATUSES = ['saved', 'interested', 'applied', 'recruiter', 'follow-up', 'skipped'];
+const ITYPES   = ['applied', 'phone_screen', 'interview', 'recruiter_contact', 'offer', 'rejected', 'note'];
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+}
+
+function statusClass(s) {
+  return 's-' + (s || 'saved').replace(/\s+/g, '-');
+}
+
+function loading(on) {
+  document.getElementById('loading-bar').classList.toggle('active', on);
+}
+
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast-${type} show`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', 2400);
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+// ── Load & filter ─────────────────────────────────────────────────────────────
+async function loadJobs(q = '') {
+  loading(true);
+  try {
+    const url = q ? `/jobs/search?q=${encodeURIComponent(q)}` : '/jobs';
+    const data = await api('GET', url);
+    allJobs = data.jobs;
+    applyFilters();
+    renderStats();
+  } catch {
+    document.getElementById('jobs-tbody').innerHTML =
+      '<tr class="state-row"><td colspan="6">Could not reach server — is it running on port 5055?</td></tr>';
+  } finally {
+    loading(false);
+  }
+}
+
+function applyFilters() {
+  const sv = document.getElementById('status-filter').value;
+  filteredJobs = sv ? allJobs.filter(j => j.status === sv) : [...allJobs];
+  if (expandedId && !filteredJobs.find(j => j.id === expandedId)) expandedId = null;
+  renderTable();
+}
+
+function renderStats() {
+  const total    = allJobs.length;
+  const applied  = allJobs.filter(j => j.status === 'applied').length;
+  const active   = allJobs.filter(j => ['interested','recruiter','follow-up'].includes(j.status)).length;
+  document.getElementById('header-stats').innerHTML =
+    `<span><strong>${total}</strong> total</span>` +
+    `<span><strong>${applied}</strong> applied</span>` +
+    `<span><strong>${active}</strong> active</span>`;
+}
+
+// ── Render table ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('jobs-tbody');
+  if (!filteredJobs.length) {
+    tbody.innerHTML = '<tr class="state-row"><td colspan="6">No jobs found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filteredJobs.map((job, i) => {
+    const open = job.id === expandedId;
+    const sc   = statusClass(job.status);
+    const opts = STATUSES.map(s =>
+      `<option value="${s}"${s === job.status ? ' selected' : ''}>${s}</option>`
+    ).join('');
+
+    return `
+      <tr class="job-row${open ? ' expanded' : ''}" data-id="${job.id}">
+        <td><span class="expand-icon">${open ? '−' : '+'}</span></td>
+        <td class="job-title">${esc(job.title || '—')}</td>
+        <td class="job-company">${esc(job.company || '—')}</td>
+        <td class="job-loc">${esc(job.location || '—')}</td>
+        <td>
+          <select class="status-select ${sc}" data-id="${job.id}" onclick="event.stopPropagation()">
+            ${opts}
+          </select>
+        </td>
+        <td>${fmtDate(job.created_at)}</td>
+      </tr>
+      <tr class="detail-row${open ? ' open' : ''}" data-id="${job.id}">
+        <td colspan="6">
+          <div class="detail-inner">
+            <div class="detail-content">
+              <div class="detail-section">
+                <div class="detail-label">Job Info</div>
+                ${field('Title',       job.title)}
+                ${field('Company',     job.company)}
+                ${field('Location',    job.location)}
+                ${field('Workplace',   job.workplace)}
+                ${field('Type',        job.employment_type)}
+                ${field('Salary',      job.salary)}
+                ${job.linkedin_url
+                  ? `<div class="detail-field"><span class="df-key">URL</span><span class="df-val"><a href="${esc(job.linkedin_url)}" target="_blank">Open on LinkedIn ↗</a></span></div>`
+                  : ''}
+              </div>
+              <div class="detail-section">
+                <div class="detail-label">Interactions</div>
+                <div class="ilist" id="ilist-${job.id}">
+                  <div class="no-interactions">Loading…</div>
+                </div>
+                <div class="detail-label" style="margin-top:14px">Log Interaction</div>
+                <form class="iform" id="iform-${job.id}">
+                  <select name="itype">
+                    ${ITYPES.map(t => `<option value="${t}">${t.replace(/_/g,' ')}</option>`).join('')}
+                  </select>
+                  <input type="text" name="note" placeholder="note (optional)">
+                  <button type="submit" class="btn">Log</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  // Bind status selects
+  tbody.querySelectorAll('.status-select').forEach(sel => {
+    sel.addEventListener('change', e => {
+      e.stopPropagation();
+      patchStatus(parseInt(sel.dataset.id), sel.value);
+    });
+  });
+
+  // Bind row clicks
+  tbody.querySelectorAll('.job-row').forEach(row => {
+    row.addEventListener('click', () => toggleDetail(parseInt(row.dataset.id)));
+  });
+
+  // Bind interaction forms
+  tbody.querySelectorAll('.iform').forEach(form => {
+    const jobId = parseInt(form.id.replace('iform-', ''));
+    form.addEventListener('submit', e => submitInteraction(e, jobId));
+  });
+
+  // Load interactions for open row
+  if (expandedId) loadInteractions(expandedId);
+}
+
+function field(key, val) {
+  if (!val) return '';
+  return `<div class="detail-field"><span class="df-key">${key}</span><span class="df-val">${esc(val)}</span></div>`;
+}
+
+// ── Toggle detail (direct DOM — keeps CSS transition) ─────────────────────────
+function toggleDetail(jobId) {
+  const closing = expandedId === jobId;
+
+  if (expandedId !== null) {
+    document.querySelector(`.job-row[data-id="${expandedId}"]`)?.classList.remove('expanded');
+    document.querySelector(`.detail-row[data-id="${expandedId}"]`)?.classList.remove('open');
+    const icon = document.querySelector(`.job-row[data-id="${expandedId}"] .expand-icon`);
+    if (icon) icon.textContent = '+';
+  }
+
+  expandedId = closing ? null : jobId;
+
+  if (expandedId !== null) {
+    document.querySelector(`.job-row[data-id="${expandedId}"]`)?.classList.add('expanded');
+    document.querySelector(`.detail-row[data-id="${expandedId}"]`)?.classList.add('open');
+    const icon = document.querySelector(`.job-row[data-id="${expandedId}"] .expand-icon`);
+    if (icon) icon.textContent = '−';
+    loadInteractions(expandedId);
+  }
+}
+
+// ── Status patch ──────────────────────────────────────────────────────────────
+async function patchStatus(jobId, status) {
+  try {
+    await api('PATCH', `/jobs/${jobId}/status`, { status });
+    const job = allJobs.find(j => j.id === jobId);
+    if (job) job.status = status;
+    const sel = document.querySelector(`.status-select[data-id="${jobId}"]`);
+    if (sel) sel.className = `status-select ${statusClass(status)}`;
+    renderStats();
+    toast(`Status → ${status}`);
+  } catch (err) {
+    toast(err.message || 'Failed to update status', 'err');
+    renderTable(); // restore
+  }
+}
+
+// ── Interactions ──────────────────────────────────────────────────────────────
+async function loadInteractions(jobId) {
+  const listEl = document.getElementById(`ilist-${jobId}`);
+  if (!listEl) return;
+  try {
+    const data = await api('GET', `/jobs/${jobId}/interactions`);
+    if (!data.interactions.length) {
+      listEl.innerHTML = '<div class="no-interactions">No interactions yet.</div>';
+      return;
+    }
+    listEl.innerHTML = data.interactions.map(i => `
+      <div class="iitem">
+        <span class="itype">${esc(i.type.replace(/_/g,' '))}</span>
+        <span class="inote">${esc(i.note || '')}</span>
+        <span class="idate">${fmtDate(i.occurred_at)}</span>
+      </div>`).join('');
+  } catch {
+    listEl.innerHTML = '<div class="no-interactions">Failed to load.</div>';
+  }
+}
+
+async function submitInteraction(e, jobId) {
+  e.preventDefault();
+  const form = e.target;
+  const itype = form.elements['itype'].value;
+  const note  = form.elements['note'].value.trim() || null;
+  try {
+    await api('POST', `/jobs/${jobId}/interactions`, { type: itype, note });
+    form.elements['note'].value = '';
+    toast('Interaction logged');
+    loadInteractions(jobId);
+  } catch (err) {
+    toast(err.message || 'Failed to log interaction', 'err');
+  }
+}
+
+// ── Wire up filters ───────────────────────────────────────────────────────────
+document.getElementById('search-input').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  const q = e.target.value.trim();
+  searchTimer = setTimeout(() => loadJobs(q), 300);
+});
+
+document.getElementById('status-filter').addEventListener('change', applyFilters);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadJobs();
+</script>
+</body>
+</html>

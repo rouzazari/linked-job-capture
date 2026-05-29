@@ -1,5 +1,5 @@
 # save as linkedin_job_server.py
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, render_template
 import sqlite3
 import json
 import csv
@@ -73,6 +73,11 @@ _SUMMARY_COLS = (
     "id, linkedin_job_id, linkedin_url, title, company, location, "
     "workplace, employment_type, salary, status, created_at, updated_at"
 )
+
+
+@app.get("/")
+def index():
+    return render_template("index.html")
 
 
 @app.post("/jobs")
