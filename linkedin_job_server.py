@@ -32,8 +32,26 @@ def init_db():
                 salary TEXT,
                 about_job TEXT,
                 json TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'saved',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            )
+        """)
+        # Migrate existing databases that predate the status column.
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
+        if "status" not in existing:
+            conn.execute("ALTER TABLE jobs ADD COLUMN status TEXT NOT NULL DEFAULT 'saved'")
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS interactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id INTEGER NOT NULL REFERENCES jobs(id),
+                linkedin_job_id TEXT,
+                company TEXT,
+                type TEXT NOT NULL,
+                note TEXT,
+                occurred_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
             )
         """)
 
@@ -53,7 +71,7 @@ _UPSERT_SET = """
 
 _SUMMARY_COLS = (
     "id, linkedin_job_id, linkedin_url, title, company, location, "
-    "workplace, employment_type, salary, created_at, updated_at"
+    "workplace, employment_type, salary, status, created_at, updated_at"
 )
 
 
@@ -189,6 +207,63 @@ def export_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=linkedin_jobs.csv"},
     )
+
+
+VALID_STATUSES = {"saved", "interested", "applied", "skipped", "recruiter", "follow-up"}
+
+
+@app.patch("/jobs/<int:job_id>/status")
+def update_status(job_id):
+    data = request.get_json(force=True)
+    status = data.get("status", "").strip()
+    if status not in VALID_STATUSES:
+        return jsonify({"error": f"invalid status; must be one of {sorted(VALID_STATUSES)}"}), 400
+    with get_conn() as conn:
+        result = conn.execute(
+            "UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?",
+            (status, datetime.now().isoformat(), job_id),
+        )
+    if result.rowcount == 0:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True, "status": status})
+
+
+@app.post("/jobs/<int:job_id>/interactions")
+def add_interaction(job_id):
+    data = request.get_json(force=True)
+    interaction_type = data.get("type", "").strip()
+    if not interaction_type:
+        return jsonify({"error": "type is required"}), 400
+    now = datetime.now().isoformat()
+    occurred_at = data.get("occurred_at") or now
+
+    with get_conn() as conn:
+        job = conn.execute(
+            "SELECT linkedin_job_id, company FROM jobs WHERE id = ?", (job_id,)
+        ).fetchone()
+        if job is None:
+            return jsonify({"error": "job not found"}), 404
+        cursor = conn.execute(
+            """INSERT INTO interactions
+               (job_id, linkedin_job_id, company, type, note, occurred_at, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (job_id, job["linkedin_job_id"], job["company"],
+             interaction_type, data.get("note"), occurred_at, now),
+        )
+    return jsonify({"ok": True, "id": cursor.lastrowid}), 201
+
+
+@app.get("/jobs/<int:job_id>/interactions")
+def list_interactions(job_id):
+    with get_conn() as conn:
+        job = conn.execute("SELECT id FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if job is None:
+            return jsonify({"error": "not found"}), 404
+        rows = conn.execute(
+            "SELECT * FROM interactions WHERE job_id = ? ORDER BY occurred_at DESC",
+            (job_id,),
+        ).fetchall()
+    return jsonify({"interactions": [dict(r) for r in rows], "count": len(rows)})
 
 
 if __name__ == "__main__":
