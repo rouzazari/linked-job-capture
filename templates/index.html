@@ -228,12 +228,13 @@
 
     .iform {
       display: grid;
-      grid-template-columns: auto 1fr auto;
+      grid-template-columns: auto 1fr auto auto;
       gap: 8px; align-items: center;
       margin-top: 4px;
     }
     .iform select, .iform input { font-size: 12px; }
     .iform input::placeholder { color: var(--text-dim); }
+    .iform input[type="datetime-local"] { width: 168px; color-scheme: dark; }
 
     /* ── Button ──────────────────────────────────────────── */
     .btn {
@@ -331,6 +332,12 @@ const ITYPES   = ['applied', 'phone_screen', 'interview', 'recruiter_contact', '
 // ── Utilities ─────────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function nowLocal() {
+  const d = new Date();
+  d.setSeconds(0, 0);
+  return d.toISOString().slice(0, 16);
 }
 
 function fmtDate(iso) {
@@ -458,6 +465,7 @@ function renderTable() {
                     ${ITYPES.map(t => `<option value="${t}">${t.replace(/_/g,' ')}</option>`).join('')}
                   </select>
                   <input type="text" name="note" placeholder="note (optional)">
+                  <input type="datetime-local" name="occurred_at" value="${nowLocal()}">
                   <button type="submit" class="btn">Log</button>
                 </form>
               </div>
@@ -557,11 +565,13 @@ async function loadInteractions(jobId) {
 async function submitInteraction(e, jobId) {
   e.preventDefault();
   const form = e.target;
-  const itype = form.elements['itype'].value;
-  const note  = form.elements['note'].value.trim() || null;
+  const itype      = form.elements['itype'].value;
+  const note       = form.elements['note'].value.trim() || null;
+  const occurred_at = form.elements['occurred_at'].value || null;
   try {
-    await api('POST', `/jobs/${jobId}/interactions`, { type: itype, note });
+    await api('POST', `/jobs/${jobId}/interactions`, { type: itype, note, occurred_at });
     form.elements['note'].value = '';
+    form.elements['occurred_at'].value = nowLocal();
     toast('Interaction logged');
     loadInteractions(jobId);
   } catch (err) {
