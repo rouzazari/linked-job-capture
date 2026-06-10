@@ -22,8 +22,9 @@ def init_db():
         conn.execute("""
             CREATE TABLE IF NOT EXISTS jobs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                linkedin_job_id TEXT UNIQUE,
-                linkedin_url TEXT UNIQUE,
+                job_id TEXT UNIQUE,
+                job_url TEXT UNIQUE,
+                source TEXT NOT NULL DEFAULT 'linkedin',
                 title TEXT,
                 company TEXT,
                 location TEXT,
@@ -37,16 +38,22 @@ def init_db():
                 updated_at TEXT NOT NULL
             )
         """)
-        # Migrate existing databases that predate the status column.
         existing = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
+        # Migrate column renames from linkedin-specific names to generic ones.
+        if "linkedin_job_id" in existing:
+            conn.execute("ALTER TABLE jobs RENAME COLUMN linkedin_job_id TO job_id")
+        if "linkedin_url" in existing:
+            conn.execute("ALTER TABLE jobs RENAME COLUMN linkedin_url TO job_url")
         if "status" not in existing:
             conn.execute("ALTER TABLE jobs ADD COLUMN status TEXT NOT NULL DEFAULT 'saved'")
+        if "source" not in existing:
+            conn.execute("ALTER TABLE jobs ADD COLUMN source TEXT NOT NULL DEFAULT 'linkedin'")
 
         conn.execute("""
             CREATE TABLE IF NOT EXISTS interactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 job_id INTEGER NOT NULL REFERENCES jobs(id),
-                linkedin_job_id TEXT,
+                ext_job_id TEXT,
                 company TEXT,
                 type TEXT NOT NULL,
                 note TEXT,
@@ -54,10 +61,14 @@ def init_db():
                 created_at TEXT NOT NULL
             )
         """)
+        iexisting = {row[1] for row in conn.execute("PRAGMA table_info(interactions)")}
+        if "linkedin_job_id" in iexisting:
+            conn.execute("ALTER TABLE interactions RENAME COLUMN linkedin_job_id TO ext_job_id")
 
 
 _UPSERT_SET = """
-    linkedin_url    = excluded.linkedin_url,
+    job_url         = excluded.job_url,
+    source          = excluded.source,
     title           = excluded.title,
     company         = excluded.company,
     location        = excluded.location,
@@ -70,7 +81,7 @@ _UPSERT_SET = """
 """
 
 _SUMMARY_COLS = (
-    "id, linkedin_job_id, linkedin_url, title, company, location, "
+    "id, job_id, job_url, source, title, company, location, "
     "workplace, employment_type, salary, status, created_at, updated_at"
 )
 
@@ -84,15 +95,18 @@ def index():
 def save_job():
     data = request.get_json(force=True)
     now = datetime.now().isoformat()
-    job_id = data.get("linkedin_job_id")
+    # Accept both old linkedin_* field names and current generic names.
+    job_id = data.get("job_id") or data.get("linkedin_job_id")
+    job_url = data.get("job_url") or data.get("linkedin_url")
+    source = data.get("source", "linkedin")
 
-    # Conflict target: job_id when present, url as fallback.
-    # NULL != NULL in SQL so ON CONFLICT(linkedin_job_id) won't fire for nulls.
-    conflict_col = "linkedin_job_id" if job_id else "linkedin_url"
+    # NULL != NULL in SQL so ON CONFLICT(job_id) won't fire for nulls.
+    conflict_col = "job_id" if job_id else "job_url"
 
     params = (
         job_id,
-        data.get("linkedin_url"),
+        job_url,
+        source,
         data.get("title"),
         data.get("company"),
         data.get("location"),
@@ -108,10 +122,10 @@ def save_job():
     with get_conn() as conn:
         conn.execute(f"""
             INSERT INTO jobs
-                (linkedin_job_id, linkedin_url, title, company, location,
+                (job_id, job_url, source, title, company, location,
                  workplace, employment_type, salary, about_job, json,
                  created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT({conflict_col}) DO UPDATE SET {_UPSERT_SET}
         """, params)
 
@@ -167,7 +181,8 @@ def job_markdown(job_id):
         f"**Workplace:** {r['workplace'] or '—'}",
         f"**Employment type:** {r['employment_type'] or '—'}",
         f"**Salary:** {r['salary'] or '—'}",
-        f"**LinkedIn URL:** {r['linkedin_url'] or '—'}",
+        f"**Source:** {r['source'] or '—'}",
+        f"**URL:** {r['job_url'] or '—'}",
         "",
         "## About the job",
         "",
@@ -188,7 +203,7 @@ def export_json():
     return Response(
         json.dumps([dict(r) for r in rows], indent=2),
         mimetype="application/json",
-        headers={"Content-Disposition": "attachment; filename=linkedin_jobs.json"},
+        headers={"Content-Disposition": "attachment; filename=jobs.json"},
     )
 
 
@@ -196,7 +211,7 @@ def export_json():
 def export_chatgpt():
     cols = [
         "title", "company", "location", "workplace", "employment_type",
-        "salary", "status", "about_job", "linkedin_url", "created_at",
+        "salary", "status", "source", "about_job", "job_url", "created_at",
     ]
     with get_conn() as conn:
         rows = conn.execute(
@@ -212,7 +227,7 @@ def export_chatgpt():
 @app.get("/jobs/export/csv")
 def export_csv():
     cols = [
-        "id", "linkedin_job_id", "linkedin_url", "title", "company",
+        "id", "job_id", "job_url", "source", "title", "company",
         "location", "workplace", "employment_type", "salary",
         "about_job", "created_at", "updated_at",
     ]
@@ -227,19 +242,21 @@ def export_csv():
     return Response(
         buf.getvalue(),
         mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=linkedin_jobs.csv"},
+        headers={"Content-Disposition": "attachment; filename=jobs.csv"},
     )
 
 
 @app.get("/jobs/lookup")
 def lookup_job():
-    linkedin_job_id = request.args.get("linkedin_job_id", "").strip()
-    if not linkedin_job_id:
-        return jsonify({"error": "linkedin_job_id required"}), 400
+    # Accept both old linkedin_job_id param (LinkedIn script) and new job_id param.
+    job_id = (request.args.get("job_id") or request.args.get("linkedin_job_id", "")).strip()
+    source = request.args.get("source", "linkedin")
+    if not job_id:
+        return jsonify({"error": "job_id required"}), 400
     with get_conn() as conn:
         row = conn.execute(
-            f"SELECT {_SUMMARY_COLS} FROM jobs WHERE linkedin_job_id = ?",
-            (linkedin_job_id,)
+            f"SELECT {_SUMMARY_COLS} FROM jobs WHERE job_id = ? AND source = ?",
+            (job_id, source)
         ).fetchone()
     if row is None:
         return jsonify({"error": "not found"}), 404
@@ -276,15 +293,15 @@ def add_interaction(job_id):
 
     with get_conn() as conn:
         job = conn.execute(
-            "SELECT linkedin_job_id, company FROM jobs WHERE id = ?", (job_id,)
+            "SELECT job_id, company FROM jobs WHERE id = ?", (job_id,)
         ).fetchone()
         if job is None:
             return jsonify({"error": "job not found"}), 404
         cursor = conn.execute(
             """INSERT INTO interactions
-               (job_id, linkedin_job_id, company, type, note, occurred_at, created_at)
+               (job_id, ext_job_id, company, type, note, occurred_at, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (job_id, job["linkedin_job_id"], job["company"],
+            (job_id, job["job_id"], job["company"],
              interaction_type, data.get("note"), occurred_at, now),
         )
     return jsonify({"ok": True, "id": cursor.lastrowid}), 201

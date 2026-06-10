@@ -296,7 +296,7 @@
 <div class="header">
   <div class="header-top">
     <span class="logo">Job Tracker</span>
-    <span class="logo-sub">linkedin capture</span>
+    <span class="logo-sub">job capture</span>
     <div class="header-stats" id="header-stats"></div>
   </div>
   <div class="filter-bar">
@@ -465,8 +465,8 @@ function renderTable() {
                 ${field('Workplace',   job.workplace)}
                 ${field('Type',        job.employment_type)}
                 ${field('Salary',      job.salary)}
-                ${job.linkedin_url
-                  ? `<div class="detail-field"><span class="df-key">URL</span><span class="df-val"><a href="${esc(job.linkedin_url)}" target="_blank">Open on LinkedIn ↗</a></span></div>`
+                ${job.job_url
+                  ? `<div class="detail-field"><span class="df-key">URL</span><span class="df-val"><a href="${esc(job.job_url)}" target="_blank">Open on ${job.source === 'indeed' ? 'Indeed' : 'LinkedIn'} ↗</a></span></div>`
                   : ''}
               </div>
               <div class="detail-section">
