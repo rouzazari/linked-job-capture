@@ -109,6 +109,20 @@
       background-position: right 9px center;
     }
 
+    .export-btn {
+      display: inline-block;
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid var(--border-bright);
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; letter-spacing: 0.06em;
+      text-decoration: none; border-radius: 2px;
+      transition: border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .export-btn:hover { border-color: var(--accent); color: var(--accent); }
+
     /* ── Table ───────────────────────────────────────────── */
     .table-wrap { padding: 0 28px 60px; overflow-x: auto; }
 
@@ -296,6 +310,7 @@
       <option value="follow-up">Follow-up</option>
       <option value="skipped">Skipped</option>
     </select>
+    <a href="/jobs/export/chatgpt" class="export-btn">↓ Export JSON</a>
   </div>
 </div>
 
@@ -336,8 +351,8 @@ function esc(s) {
 
 function nowLocal() {
   const d = new Date();
-  d.setSeconds(0, 0);
-  return d.toISOString().slice(0, 16);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function fmtDate(iso) {

@@ -192,6 +192,23 @@ def export_json():
     )
 
 
+@app.get("/jobs/export/chatgpt")
+def export_chatgpt():
+    cols = [
+        "title", "company", "location", "workplace", "employment_type",
+        "salary", "status", "about_job", "linkedin_url", "created_at",
+    ]
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT {', '.join(cols)} FROM jobs ORDER BY created_at DESC"
+        ).fetchall()
+    return Response(
+        json.dumps([dict(r) for r in rows], indent=2),
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment; filename=jobs_for_chatgpt.json"},
+    )
+
+
 @app.get("/jobs/export/csv")
 def export_csv():
     cols = [
@@ -212,6 +229,21 @@ def export_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=linkedin_jobs.csv"},
     )
+
+
+@app.get("/jobs/lookup")
+def lookup_job():
+    linkedin_job_id = request.args.get("linkedin_job_id", "").strip()
+    if not linkedin_job_id:
+        return jsonify({"error": "linkedin_job_id required"}), 400
+    with get_conn() as conn:
+        row = conn.execute(
+            f"SELECT {_SUMMARY_COLS} FROM jobs WHERE linkedin_job_id = ?",
+            (linkedin_job_id,)
+        ).fetchone()
+    if row is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(dict(row))
 
 
 VALID_STATUSES = {"saved", "interested", "applied", "skipped", "recruiter", "follow-up"}

@@ -140,81 +140,164 @@
     };
   }
 
+  // ── Status ──────────────────────────────────────────────────────────────────
+
+  const STATUS_COLORS = {
+    saved:        "#4a8fa8",
+    interested:   "#8b6cc4",
+    applied:      "#5aab72",
+    skipped:      "#888888",
+    recruiter:    "#c8a84b",
+    "follow-up":  "#c26b4a",
+  };
+
+  let currentStatus = { html: "● checking…", color: "#555" };
+
+  function setStatus(html, color) {
+    currentStatus = { html, color };
+    const el = document.getElementById("lj-status");
+    if (el) { el.innerHTML = html; el.style.color = color; }
+  }
+
+  function flashStatus(html, color, ms = 2000) {
+    const el = document.getElementById("lj-status");
+    if (!el) return;
+    el.innerHTML = html;
+    el.style.color = color;
+    setTimeout(() => {
+      el.innerHTML = currentStatus.html;
+      el.style.color = currentStatus.color;
+    }, ms);
+  }
+
+  function checkStatus() {
+    const jobId = getLinkedInJobId();
+    if (!jobId) { setStatus("● no job id", "#555"); return; }
+    setStatus("● checking…", "#555");
+
+    GM_xmlhttpRequest({
+      method: "GET",
+      url: "http://127.0.0.1:5055/jobs/lookup?linkedin_job_id=" + jobId,
+      onload: function (response) {
+        if (response.status === 200) {
+          const job = JSON.parse(response.responseText);
+          const color = STATUS_COLORS[job.status] || "#888";
+          setStatus("● " + job.status, color);
+        } else if (response.status === 404) {
+          setStatus("● not saved", "#444");
+        } else {
+          setStatus("● server error", "#c26b4a");
+        }
+      },
+      onerror: function () {
+        setStatus("● server offline", "#444");
+      }
+    });
+  }
+
+  // ── Actions ──────────────────────────────────────────────────────────────────
+
   function copyJob() {
     const data = getJobData();
     const output = JSON.stringify(data, null, 2);
-
     if (typeof GM_setClipboard === "function") {
       GM_setClipboard(output);
     } else {
       navigator.clipboard.writeText(output);
     }
+    flashStatus("● copied to clipboard", "#5aab72");
   }
 
   function saveJob() {
     const data = getJobData();
+    const saveBtn = document.getElementById("lj-save-btn");
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
+    setStatus("● saving…", "#888");
 
     GM_xmlhttpRequest({
       method: "POST",
       url: "http://127.0.0.1:5055/jobs",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       data: JSON.stringify(data),
       onload: function (response) {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Job"; }
         if (response.status >= 200 && response.status < 300) {
-          alert("LinkedIn job saved");
+          checkStatus();
         } else {
-          alert("Save failed: " + response.status);
+          setStatus("● save failed (" + response.status + ")", "#c26b4a");
         }
       },
       onerror: function () {
-        alert("Save failed. Is the local server running?");
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Job"; }
+        setStatus("● server offline", "#444");
       }
     });
   }
 
-  function addButton() {
-    const copyButtonExists = document.getElementById("copy-linkedin-job-json");
-    const saveButtonExists = document.getElementById("save-linkedin-job-json");
+  // ── Panel ────────────────────────────────────────────────────────────────────
 
-    const cssText = `
-      position: fixed;
-      z-index: 999999;
-      padding: 10px 14px;
-      background: #0a66c2;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-    `;
+  function createPanel() {
+    if (document.getElementById("lj-panel")) return;
 
-    if (!copyButtonExists) {
-      const copyButton = document.createElement("button");
-      copyButton.id = "copy-linkedin-job-json";
-      copyButton.textContent = "Copy Job JSON";
-      copyButton.style.cssText = cssText + `
-        top: 80px;
-        right: 20px;
-      `;
-      copyButton.onclick = copyJob;
-      document.body.appendChild(copyButton);
+    const panel = document.createElement("div");
+    panel.id = "lj-panel";
+    panel.style.cssText = [
+      "position:fixed", "top:80px", "right:20px", "z-index:999999",
+      "background:#131312", "border:1px solid #3a3a37", "border-radius:6px",
+      "padding:12px", "box-shadow:0 4px 24px rgba(0,0,0,0.5)",
+      "font-family:'JetBrains Mono',Consolas,monospace", "min-width:218px",
+    ].join(";");
+
+    const btnBase = [
+      "flex:1", "padding:7px 8px", "background:#1a1a18", "color:#ddd8c4",
+      "border:1px solid #3a3a37", "border-radius:3px", "cursor:pointer",
+      "font-family:'JetBrains Mono',Consolas,monospace",
+      "font-size:11px", "font-weight:500", "letter-spacing:0.03em",
+    ].join(";");
+
+    function makeBtn(id, label, handler) {
+      const btn = document.createElement("button");
+      btn.id = id;
+      btn.textContent = label;
+      btn.style.cssText = btnBase;
+      btn.onmouseenter = () => { btn.style.background = "#222220"; };
+      btn.onmouseleave = () => { btn.style.background = "#1a1a18"; };
+      btn.onclick = handler;
+      return btn;
     }
 
-    if (!saveButtonExists) {
-      const saveButton = document.createElement("button");
-      saveButton.id = "save-linkedin-job-json";
-      saveButton.textContent = "Save Job";
-      saveButton.style.cssText = cssText + `
-        top: 80px;
-        right: 150px;
-      `;
-      saveButton.onclick = saveJob;
-      document.body.appendChild(saveButton);
-    }
+    const btnRow = document.createElement("div");
+    btnRow.style.cssText = "display:flex;gap:8px;margin-bottom:10px";
+    btnRow.appendChild(makeBtn("lj-save-btn",              "Save Job",  saveJob));
+    btnRow.appendChild(makeBtn("copy-linkedin-job-json",   "Copy JSON", copyJob));
+
+    const divider = document.createElement("div");
+    divider.style.cssText = "height:1px;background:#262622;margin-bottom:8px";
+
+    const statusEl = document.createElement("div");
+    statusEl.id = "lj-status";
+    statusEl.style.cssText = "font-size:11px;letter-spacing:0.05em;color:#555;padding:1px 0";
+    statusEl.textContent = "● checking…";
+
+    panel.appendChild(btnRow);
+    panel.appendChild(divider);
+    panel.appendChild(statusEl);
+    document.body.appendChild(panel);
+
+    checkStatus();
   }
 
-  addButton();
+  // ── SPA navigation watcher ───────────────────────────────────────────────────
+
+  let lastHref = location.href;
+  setInterval(function () {
+    if (location.href !== lastHref) {
+      lastHref = location.href;
+      const saveBtn = document.getElementById("lj-save-btn");
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Job"; }
+      checkStatus();
+    }
+  }, 1500);
+
+  createPanel();
 })();
