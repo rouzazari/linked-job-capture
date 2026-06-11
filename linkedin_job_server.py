@@ -91,6 +91,11 @@ def index():
     return render_template("index.html")
 
 
+@app.get("/add-job")
+def add_job_page():
+    return render_template("add_job.html")
+
+
 @app.post("/jobs")
 def save_job():
     data = request.get_json(force=True)

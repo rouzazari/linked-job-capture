@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Job — Job Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:            #0c0c0b;
+      --surface:       #131312;
+      --surface-hi:    #1a1a18;
+      --border:        #262622;
+      --border-dim:    #1c1c1a;
+      --border-bright: #38382f;
+      --text:          #ddd8c4;
+      --text-muted:    #6b6856;
+      --text-dim:      #3a3a35;
+      --accent:        #c8a84b;
+      --accent-bg:     #261f0e;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ──────────────────────────────────────────── */
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 28px 16px;
+      display: flex; align-items: baseline; gap: 14px;
+    }
+    .logo {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 21px; color: var(--accent); letter-spacing: -0.3px;
+      text-decoration: none;
+    }
+    .logo-sub {
+      font-size: 10px; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-dim);
+    }
+    .back-link {
+      margin-left: auto;
+      font-size: 11px; color: var(--text-muted);
+      text-decoration: none; letter-spacing: 0.04em;
+    }
+    .back-link:hover { color: var(--accent); }
+
+    /* ── Form container ──────────────────────────────────── */
+    .form-wrap {
+      max-width: 680px;
+      margin: 40px auto;
+      padding: 0 28px 80px;
+    }
+
+    .form-title {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 22px; color: var(--text);
+      margin-bottom: 6px;
+    }
+    .form-sub {
+      font-size: 11px; color: var(--text-muted);
+      letter-spacing: 0.04em; margin-bottom: 32px;
+    }
+
+    /* ── Field rows ──────────────────────────────────────── */
+    .field { margin-bottom: 20px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+    label {
+      display: block;
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 7px;
+    }
+    label .req { color: var(--accent); margin-left: 2px; }
+
+    input[type="text"],
+    input[type="url"],
+    select,
+    textarea {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 8px 10px;
+      border-radius: 2px;
+      outline: none;
+      transition: border-color 0.15s;
+      display: block;
+    }
+    input[type="text"]:focus,
+    input[type="url"]:focus,
+    select:focus,
+    textarea:focus { border-color: var(--border-bright); }
+
+    input::placeholder,
+    textarea::placeholder { color: var(--text-dim); }
+
+    select {
+      cursor: pointer; appearance: none; -webkit-appearance: none;
+      padding-right: 26px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%236b6856'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 9px center;
+    }
+    select option { background: #1a1a18; color: var(--text); }
+
+    textarea {
+      resize: vertical;
+      min-height: 260px;
+      line-height: 1.6;
+    }
+
+    /* ── Divider ─────────────────────────────────────────── */
+    .divider {
+      height: 1px; background: var(--border);
+      margin: 28px 0;
+    }
+
+    /* ── Actions ─────────────────────────────────────────── */
+    .actions { display: flex; gap: 12px; align-items: center; margin-top: 28px; }
+
+    .btn-primary {
+      background: var(--accent-bg); color: var(--accent);
+      border: 1px solid var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 9px 22px; border-radius: 2px;
+      cursor: pointer; transition: background 0.12s;
+    }
+    .btn-primary:hover  { background: #3a2e0e; }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: transparent; color: var(--text-muted);
+      border: 1px solid var(--border-bright);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 9px 18px; border-radius: 2px;
+      cursor: pointer; transition: border-color 0.12s, color 0.12s;
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Feedback ────────────────────────────────────────── */
+    #feedback {
+      font-size: 12px; padding: 4px 0;
+      transition: opacity 0.2s;
+    }
+    #feedback.ok  { color: #5aab72; }
+    #feedback.err { color: #c26b4a; }
+    #feedback:empty { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <a class="logo" href="/">Job Tracker</a>
+  <span class="logo-sub">add job</span>
+  <a class="back-link" href="/">← back to tracker</a>
+</div>
+
+<div class="form-wrap">
+  <div class="form-title">Add a job manually</div>
+  <div class="form-sub">For jobs found directly on company sites or other sources not captured by the browser scripts.</div>
+
+  <form id="job-form" autocomplete="off">
+
+    <div class="field-row">
+      <div class="field">
+        <label>Title <span class="req">*</span></label>
+        <input type="text" name="title" placeholder="Software Engineer" required>
+      </div>
+      <div class="field">
+        <label>Company <span class="req">*</span></label>
+        <input type="text" name="company" placeholder="Acme Corp" required>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Location</label>
+        <input type="text" name="location" placeholder="San Francisco, CA">
+      </div>
+      <div class="field">
+        <label>Source</label>
+        <input type="text" name="source" value="manual" list="source-options">
+        <datalist id="source-options">
+          <option value="manual">
+          <option value="linkedin">
+          <option value="indeed">
+          <option value="company site">
+          <option value="referral">
+        </datalist>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Workplace</label>
+        <select name="workplace">
+          <option value="">— not specified —</option>
+          <option value="Remote">Remote</option>
+          <option value="Hybrid">Hybrid</option>
+          <option value="On-site">On-site</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Employment type</label>
+        <select name="employment_type">
+          <option value="">— not specified —</option>
+          <option value="Full-time">Full-time</option>
+          <option value="Part-time">Part-time</option>
+          <option value="Contract">Contract</option>
+          <option value="Temporary">Temporary</option>
+          <option value="Internship">Internship</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Salary</label>
+        <input type="text" name="salary" placeholder="$120,000 — $150,000">
+      </div>
+      <div class="field">
+        <label>Job URL</label>
+        <input type="url" name="job_url" placeholder="https://…">
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="field">
+      <label>About the job</label>
+      <textarea name="about_job" placeholder="Paste the job description here…"></textarea>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn-primary" id="submit-btn">Save Job</button>
+      <button type="button" class="btn-ghost" id="clear-btn">Clear</button>
+      <span id="feedback"></span>
+    </div>
+
+  </form>
+</div>
+
+<script>
+const form = document.getElementById('job-form');
+const submitBtn = document.getElementById('submit-btn');
+const feedback = document.getElementById('feedback');
+
+function setFeedback(msg, type) {
+  feedback.textContent = msg;
+  feedback.className = type;
+}
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  form.reset();
+  form.querySelector('[name="source"]').value = 'manual';
+  setFeedback('', '');
+});
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Saving…';
+  setFeedback('', '');
+
+  const fd = new FormData(form);
+  const body = {};
+  for (const [k, v] of fd.entries()) {
+    const val = v.trim();
+    if (val) body[k] = val;
+  }
+  // Ensure source always has a value.
+  if (!body.source) body.source = 'manual';
+
+  try {
+    const res = await fetch('/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    setFeedback('✓ Job saved', 'ok');
+    form.reset();
+    form.querySelector('[name="source"]').value = 'manual';
+  } catch (err) {
+    setFeedback('✗ ' + (err.message || 'Save failed'), 'err');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Save Job';
+  }
+});
+</script>
+</body>
+</html>
