@@ -458,7 +458,10 @@ function renderTable() {
           <div class="detail-inner">
             <div class="detail-content">
               <div class="detail-section">
-                <div class="detail-label">Job Info</div>
+                <div class="detail-label" style="display:flex;justify-content:space-between;align-items:center">
+                  Job Info
+                  <a href="/jobs/${job.id}/export/json" class="export-btn" style="font-size:10px;padding:3px 8px;letter-spacing:0.04em">↓ JSON</a>
+                </div>
                 ${field('Title',       job.title)}
                 ${field('Company',     job.company)}
                 ${field('Location',    job.location)}

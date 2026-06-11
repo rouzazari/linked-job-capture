@@ -196,6 +196,19 @@ def job_markdown(job_id):
     )
 
 
+@app.get("/jobs/<int:job_id>/export/json")
+def export_job_json(job_id):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    if row is None:
+        return jsonify({"error": "not found"}), 404
+    return Response(
+        json.dumps(dict(row), indent=2),
+        mimetype="application/json",
+        headers={"Content-Disposition": f"attachment; filename=job_{job_id}.json"},
+    )
+
+
 @app.get("/jobs/export/json")
 def export_json():
     with get_conn() as conn:
