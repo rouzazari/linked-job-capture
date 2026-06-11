@@ -470,7 +470,7 @@ function renderTable() {
                 ${field('Type',        job.employment_type)}
                 ${field('Salary',      job.salary)}
                 ${job.job_url
-                  ? `<div class="detail-field"><span class="df-key">URL</span><span class="df-val"><a href="${esc(job.job_url)}" target="_blank">Open on ${job.source === 'indeed' ? 'Indeed' : 'LinkedIn'} ↗</a></span></div>`
+                  ? `<div class="detail-field"><span class="df-key">URL</span><span class="df-val"><a href="${esc(job.job_url)}" target="_blank">${{'linkedin':'Open on LinkedIn ↗','indeed':'Open on Indeed ↗'}[job.source] || 'Open ↗'}</a></span></div>`
                   : ''}
               </div>
               <div class="detail-section">
