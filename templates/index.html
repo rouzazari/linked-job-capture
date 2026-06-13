@@ -283,6 +283,13 @@
     #toast.toast-ok      { border-color: #5aab7250; color: #5aab72; }
     #toast.toast-err     { border-color: #c26b4a50; color: #c26b4a; }
 
+    /* ── Checkbox ───────────────────────────────────────── */
+    input[type="checkbox"] {
+      width: 14px; height: 14px;
+      accent-color: var(--accent);
+      cursor: pointer; display: block;
+    }
+
     /* ── Scrollbar ───────────────────────────────────────── */
     ::-webkit-scrollbar       { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -312,6 +319,7 @@
       <option value="skipped">Skipped</option>
     </select>
     <a href="/jobs/export/chatgpt" class="export-btn">↓ Export JSON</a>
+    <button id="export-selected-btn" class="export-btn" style="display:none;border:none;cursor:pointer" onclick="exportSelected()">↓ Export Selected</button>
   </div>
 </div>
 
@@ -319,7 +327,8 @@
   <table>
     <thead>
       <tr>
-        <th></th>
+        <th style="width:32px"><input type="checkbox" id="select-all-cb" title="Select all"></th>
+        <th style="width:32px"></th>
         <th>Title</th>
         <th>Company</th>
         <th>Location</th>
@@ -328,7 +337,7 @@
       </tr>
     </thead>
     <tbody id="jobs-tbody">
-      <tr class="state-row"><td colspan="6">Loading…</td></tr>
+      <tr class="state-row"><td colspan="7">Loading…</td></tr>
     </tbody>
   </table>
 </div>
@@ -341,6 +350,7 @@ let allJobs = [];
 let filteredJobs = [];
 let expandedId = null;
 let searchTimer = null;
+const selectedIds = new Set();
 
 const STATUSES = ['saved', 'interested', 'applied', 'recruiter', 'follow-up', 'skipped'];
 const ITYPES   = ['applied', 'phone_screen', 'interview', 'recruiter_contact', 'offer', 'rejected', 'note'];
@@ -403,7 +413,7 @@ async function loadJobs(q = '') {
     renderStats();
   } catch {
     document.getElementById('jobs-tbody').innerHTML =
-      '<tr class="state-row"><td colspan="6">Could not reach server — is it running on port 5055?</td></tr>';
+      '<tr class="state-row"><td colspan="7">Could not reach server — is it running on port 5055?</td></tr>';
   } finally {
     loading(false);
   }
@@ -430,7 +440,7 @@ function renderStats() {
 function renderTable() {
   const tbody = document.getElementById('jobs-tbody');
   if (!filteredJobs.length) {
-    tbody.innerHTML = '<tr class="state-row"><td colspan="6">No jobs found.</td></tr>';
+    tbody.innerHTML = '<tr class="state-row"><td colspan="7">No jobs found.</td></tr>';
     return;
   }
 
@@ -443,6 +453,7 @@ function renderTable() {
 
     return `
       <tr class="job-row${open ? ' expanded' : ''}" data-id="${job.id}">
+        <td><input type="checkbox" class="job-cb" data-id="${job.id}" ${selectedIds.has(job.id) ? 'checked' : ''} onclick="event.stopPropagation()"></td>
         <td><span class="expand-icon">${open ? '−' : '+'}</span></td>
         <td class="job-title">${esc(job.title || '—')}</td>
         <td class="job-company">${esc(job.company || '—')}</td>
@@ -455,7 +466,7 @@ function renderTable() {
         <td>${fmtDate(job.created_at)}</td>
       </tr>
       <tr class="detail-row${open ? ' open' : ''}" data-id="${job.id}">
-        <td colspan="6">
+        <td colspan="7">
           <div class="detail-inner">
             <div class="detail-content">
               <div class="detail-section">
@@ -513,8 +524,63 @@ function renderTable() {
     form.addEventListener('submit', e => submitInteraction(e, jobId));
   });
 
+  // Bind checkboxes
+  tbody.querySelectorAll('.job-cb').forEach(cb => {
+    cb.addEventListener('change', e => {
+      e.stopPropagation();
+      const id = parseInt(cb.dataset.id);
+      if (cb.checked) selectedIds.add(id);
+      else selectedIds.delete(id);
+      syncSelectAll();
+      updateExportBtn();
+    });
+  });
+
+  syncSelectAll();
+  updateExportBtn();
+
   // Load interactions for open row
   if (expandedId) loadInteractions(expandedId);
+}
+
+function syncSelectAll() {
+  const cbs = [...document.querySelectorAll('.job-cb')];
+  const allCb = document.getElementById('select-all-cb');
+  if (!allCb) return;
+  const checkedCount = cbs.filter(cb => cb.checked).length;
+  allCb.checked       = cbs.length > 0 && checkedCount === cbs.length;
+  allCb.indeterminate = checkedCount > 0 && checkedCount < cbs.length;
+}
+
+function updateExportBtn() {
+  const btn = document.getElementById('export-selected-btn');
+  if (!btn) return;
+  if (selectedIds.size > 0) {
+    btn.textContent = `↓ Export Selected (${selectedIds.size})`;
+    btn.style.display = 'inline-block';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+async function exportSelected() {
+  if (!selectedIds.size) return;
+  try {
+    const res = await fetch('/jobs/export/selected', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [...selectedIds] }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'jobs_selected.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    toast(err.message || 'Export failed', 'err');
+  }
 }
 
 function field(key, val) {
@@ -606,6 +672,17 @@ document.getElementById('search-input').addEventListener('input', e => {
 });
 
 document.getElementById('status-filter').addEventListener('change', applyFilters);
+
+document.getElementById('select-all-cb').addEventListener('change', e => {
+  const checked = e.target.checked;
+  document.querySelectorAll('.job-cb').forEach(cb => {
+    cb.checked = checked;
+    const id = parseInt(cb.dataset.id);
+    if (checked) selectedIds.add(id);
+    else selectedIds.delete(id);
+  });
+  updateExportBtn();
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadJobs();

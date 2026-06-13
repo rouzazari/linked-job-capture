@@ -214,6 +214,29 @@ def export_job_json(job_id):
     )
 
 
+@app.post("/jobs/export/selected")
+def export_selected():
+    data = request.get_json(force=True)
+    ids = data.get("ids", [])
+    if not ids:
+        return jsonify({"error": "no ids provided"}), 400
+    placeholders = ",".join("?" * len(ids))
+    cols = [
+        "title", "company", "location", "workplace", "employment_type",
+        "salary", "status", "source", "about_job", "job_url", "created_at",
+    ]
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT {', '.join(cols)} FROM jobs WHERE id IN ({placeholders}) ORDER BY created_at DESC",
+            ids,
+        ).fetchall()
+    return Response(
+        json.dumps([dict(r) for r in rows], indent=2),
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment; filename=jobs_selected.json"},
+    )
+
+
 @app.get("/jobs/export/json")
 def export_json():
     with get_conn() as conn:
