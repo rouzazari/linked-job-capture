@@ -108,6 +108,7 @@
     skipped:      "#888888",
     recruiter:    "#c8a84b",
     "follow-up":  "#c26b4a",
+    "rejected":   "#a03a3a",
   };
 
   let currentStatus = { html: "● checking…", color: "#555" };
