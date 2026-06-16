@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Applications — Job Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:            #0c0c0b;
+      --surface:       #131312;
+      --surface-hi:    #1a1a18;
+      --border:        #262622;
+      --border-dim:    #1c1c1a;
+      --border-bright: #38382f;
+      --text:          #ddd8c4;
+      --text-muted:    #6b6856;
+      --text-dim:      #3a3a35;
+      --accent:        #c8a84b;
+      --accent-bg:     #261f0e;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Loading bar ─────────────────────────────────────── */
+    #loading-bar { position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 500; overflow: hidden; }
+    #loading-bar.active::after {
+      content: ''; display: block; height: 100%; width: 35%;
+      background: var(--accent);
+      animation: sweep 1s ease-in-out infinite;
+    }
+    @keyframes sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(360%); } }
+
+    /* ── Header ──────────────────────────────────────────── */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+    }
+    .header-top { display: flex; align-items: baseline; gap: 14px; padding: 18px 0 12px; }
+    .logo {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 21px; color: var(--accent); letter-spacing: -0.3px;
+      text-decoration: none;
+    }
+    .logo-sub { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); }
+    .header-stats { margin-left: auto; display: flex; gap: 22px; font-size: 11px; color: var(--text-muted); }
+    .header-stats strong { color: var(--text); font-weight: 500; }
+    .back-link { margin-left: 16px; font-size: 11px; color: var(--text-muted); text-decoration: none; letter-spacing: 0.04em; white-space: nowrap; }
+    .back-link:hover { color: var(--accent); }
+
+    /* ── Filter bar ──────────────────────────────────────── */
+    .filter-bar { display: flex; gap: 10px; padding: 10px 0 16px; align-items: center; flex-wrap: wrap; }
+
+    input[type="text"], input[type="date"], select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 2px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus, input[type="date"]:focus, select:focus { border-color: var(--border-bright); }
+    input[type="date"] { color-scheme: dark; }
+    input::placeholder { color: var(--text-dim); }
+    #search-input { width: 260px; }
+
+    select {
+      cursor: pointer; appearance: none; -webkit-appearance: none;
+      padding-right: 26px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%236b6856'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 9px center;
+    }
+    select option { background: #1a1a18; color: var(--text); }
+
+    .filter-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+    .status-checks { display: flex; gap: 10px; align-items: center; }
+    .status-check-label {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; letter-spacing: 0.05em; color: var(--text-muted);
+      cursor: pointer; user-select: none;
+    }
+    .status-check-label input { width: 13px; height: 13px; accent-color: var(--accent); cursor: pointer; }
+
+    /* ── Table ───────────────────────────────────────────── */
+    .table-wrap { padding: 0 28px 60px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+
+    thead th {
+      text-align: left; font-size: 10px; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim);
+      padding: 12px 12px 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    thead th:first-child { padding-left: 0; width: 32px; }
+    thead th:last-child  { text-align: right; }
+
+    .job-row { cursor: pointer; }
+    .job-row:hover td, .job-row.expanded td { background: var(--surface); }
+    .job-row td {
+      padding: 10px 12px; border-bottom: 1px solid var(--border-dim);
+      vertical-align: middle; transition: background 0.1s;
+    }
+    .job-row td:first-child  { padding-left: 0; width: 32px; }
+    .job-row td:last-child   { text-align: right; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+
+    .job-title   { font-weight: 500; }
+    .job-company { color: var(--text-muted); font-size: 12px; }
+    .job-loc     { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+
+    .expand-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 16px; height: 16px; border: 1px solid var(--text-dim); border-radius: 2px;
+      font-size: 14px; line-height: 1; color: var(--text-dim);
+      transition: all 0.12s; user-select: none;
+    }
+    .job-row.expanded .expand-icon { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+
+    /* ── Status badge ────────────────────────────────────── */
+    .status-badge {
+      display: inline-block;
+      font-size: 10px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 2px; border: 1px solid; white-space: nowrap;
+    }
+    .s-applied    { background-color:#5aab721a; color:#5aab72; border-color:#5aab7230; }
+    .s-recruiter  { background-color:#c8a84b1a; color:#c8a84b; border-color:#c8a84b30; }
+    .s-follow-up  { background-color:#c26b4a1a; color:#c26b4a; border-color:#c26b4a30; }
+    .s-rejected   { background-color:#a03a3a1a; color:#a03a3a; border-color:#a03a3a30; }
+    .s-closed     { background-color:#2a2a281a; color:#52504a; border-color:#52504a30; }
+    .s-interested { background-color:#8b6cc41a; color:#8b6cc4; border-color:#8b6cc430; }
+
+    /* ── Detail row ──────────────────────────────────────── */
+    .detail-row td { padding: 0; border-bottom: none; }
+    .detail-row.open td { border-bottom: 1px solid var(--border); }
+    .detail-inner { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+    .detail-row.open .detail-inner { max-height: 600px; }
+
+    .detail-content {
+      display: grid; grid-template-columns: 1fr 1fr;
+      background: var(--surface); border-top: 1px solid var(--border);
+    }
+    .detail-section { padding: 20px 24px 24px; }
+    .detail-section + .detail-section { border-left: 1px solid var(--border); }
+
+    .detail-label {
+      font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-dim); margin-bottom: 12px;
+    }
+    .detail-field { display: grid; grid-template-columns: 90px 1fr; gap: 4px 10px; margin-bottom: 5px; font-size: 12px; }
+    .df-key { color: var(--text-muted); }
+    .df-val { color: var(--text); word-break: break-all; }
+    .df-val a { color: var(--accent); text-decoration: none; }
+    .df-val a:hover { text-decoration: underline; }
+
+    /* ── Interactions ────────────────────────────────────── */
+    .ilist { margin-bottom: 0; max-height: 200px; overflow-y: auto; }
+    .iitem { display: flex; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--border-dim); font-size: 12px; }
+    .iitem:last-child { border-bottom: none; }
+    .itype { font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); white-space: nowrap; min-width: 110px; }
+    .inote { color: var(--text-muted); flex: 1; }
+    .idate { color: var(--text-dim); white-space: nowrap; font-size: 11px; }
+    .no-interactions { color: var(--text-dim); font-size: 12px; padding: 6px 0; font-style: italic; }
+
+    /* ── State / empty ───────────────────────────────────── */
+    .state-row td { text-align: center; padding: 60px 24px; color: var(--text-dim); font-size: 12px; border-bottom: none; }
+
+    /* ── Toast ───────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 400;
+      background: var(--surface-hi); border: 1px solid var(--border-bright);
+      color: var(--text); font-size: 12px; padding: 9px 16px; border-radius: 3px;
+      transform: translateY(60px); opacity: 0; transition: all 0.2s ease; pointer-events: none;
+    }
+    #toast.show     { transform: translateY(0); opacity: 1; }
+    #toast.toast-ok  { border-color: #5aab7250; color: #5aab72; }
+    #toast.toast-err { border-color: #c26b4a50; color: #c26b4a; }
+
+    ::-webkit-scrollbar       { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<div id="loading-bar"></div>
+
+<div class="header">
+  <div class="header-top">
+    <a class="logo" href="/">Job Tracker</a>
+    <span class="logo-sub">applications</span>
+    <div class="header-stats" id="header-stats"></div>
+    <a class="back-link" href="/">← all jobs</a>
+  </div>
+  <div class="filter-bar">
+    <input type="text" id="search-input" placeholder="search title or company…" autocomplete="off">
+
+    <select id="workplace-filter">
+      <option value="">All workplaces</option>
+      <option value="Remote">Remote</option>
+      <option value="Hybrid">Hybrid</option>
+      <option value="On-site">On-site</option>
+    </select>
+
+    <div class="filter-sep"></div>
+
+    <div class="status-checks">
+      <label class="status-check-label"><input type="checkbox" value="applied"    checked> applied</label>
+      <label class="status-check-label"><input type="checkbox" value="recruiter"  checked> recruiter</label>
+      <label class="status-check-label"><input type="checkbox" value="follow-up"  checked> follow-up</label>
+      <label class="status-check-label"><input type="checkbox" value="interested"        > interested</label>
+      <label class="status-check-label"><input type="checkbox" value="rejected"          > rejected</label>
+      <label class="status-check-label"><input type="checkbox" value="closed"            > closed</label>
+    </div>
+
+    <div class="filter-sep"></div>
+
+    <input type="date" id="date-from" title="Applied from">
+    <span style="color:var(--text-dim);font-size:11px">–</span>
+    <input type="date" id="date-to"   title="Applied to">
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Title</th>
+        <th>Company</th>
+        <th>Location</th>
+        <th>Workplace</th>
+        <th>Status</th>
+        <th>Saved</th>
+      </tr>
+    </thead>
+    <tbody id="jobs-tbody">
+      <tr class="state-row"><td colspan="7">Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let allJobs = [];
+let filteredJobs = [];
+let expandedId = null;
+let searchTimer = null;
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+}
+function loading(on) { document.getElementById('loading-bar').classList.toggle('active', on); }
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast-${type} show`;
+  clearTimeout(el._t); el._t = setTimeout(() => el.className = '', 2400);
+}
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function loadJobs() {
+  loading(true);
+  try {
+    const res = await fetch('/jobs');
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    allJobs = data.jobs;
+    applyFilters();
+  } catch {
+    document.getElementById('jobs-tbody').innerHTML =
+      '<tr class="state-row"><td colspan="7">Could not reach server — is it running on port 5055?</td></tr>';
+  } finally {
+    loading(false);
+  }
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+function getCheckedStatuses() {
+  return [...document.querySelectorAll('.status-checks input:checked')].map(cb => cb.value);
+}
+
+function applyFilters() {
+  const q         = document.getElementById('search-input').value.trim().toLowerCase();
+  const workplace = document.getElementById('workplace-filter').value;
+  const dateFrom  = document.getElementById('date-from').value;
+  const dateTo    = document.getElementById('date-to').value;
+  const statuses  = new Set(getCheckedStatuses());
+
+  filteredJobs = allJobs.filter(j => {
+    if (!statuses.has(j.status)) return false;
+    if (workplace && j.workplace !== workplace) return false;
+    if (q && !`${j.title} ${j.company}`.toLowerCase().includes(q)) return false;
+    if (dateFrom && j.created_at < dateFrom) return false;
+    if (dateTo   && j.created_at > dateTo + 'T23:59:59') return false;
+    return true;
+  });
+
+  if (expandedId && !filteredJobs.find(j => j.id === expandedId)) expandedId = null;
+  renderStats();
+  renderTable();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const applied   = filteredJobs.filter(j => j.status === 'applied').length;
+  const active    = filteredJobs.filter(j => ['recruiter','follow-up'].includes(j.status)).length;
+  const rejected  = filteredJobs.filter(j => j.status === 'rejected').length;
+  document.getElementById('header-stats').innerHTML =
+    `<span><strong>${filteredJobs.length}</strong> shown</span>` +
+    `<span><strong>${applied}</strong> applied</span>` +
+    `<span><strong>${active}</strong> active</span>` +
+    `<span><strong>${rejected}</strong> rejected</span>`;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('jobs-tbody');
+  if (!filteredJobs.length) {
+    tbody.innerHTML = '<tr class="state-row"><td colspan="7">No matching applications.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filteredJobs.map(job => {
+    const open = job.id === expandedId;
+    return `
+      <tr class="job-row${open ? ' expanded' : ''}" data-id="${job.id}">
+        <td><span class="expand-icon">${open ? '−' : '+'}</span></td>
+        <td class="job-title">${esc(job.title || '—')}</td>
+        <td class="job-company">${esc(job.company || '—')}</td>
+        <td class="job-loc">${esc(job.location || '—')}</td>
+        <td class="job-loc">${esc(job.workplace || '—')}</td>
+        <td><span class="status-badge s-${(job.status||'').replace(/\s+/g,'-')}">${esc(job.status||'')}</span></td>
+        <td>${fmtDate(job.created_at)}</td>
+      </tr>
+      <tr class="detail-row${open ? ' open' : ''}" data-id="${job.id}">
+        <td colspan="7">
+          <div class="detail-inner">
+            <div class="detail-content">
+              <div class="detail-section">
+                <div class="detail-label">Job Info</div>
+                ${field('Title',     job.title)}
+                ${field('Company',   job.company)}
+                ${field('Location',  job.location)}
+                ${field('Workplace', job.workplace)}
+                ${field('Type',      job.employment_type)}
+                ${field('Salary',    job.salary)}
+                ${job.job_url
+                  ? `<div class="detail-field"><span class="df-key">URL</span><span class="df-val"><a href="${esc(job.job_url)}" target="_blank">${job.source === 'indeed' ? 'Open on Indeed ↗' : job.source === 'linkedin' ? 'Open on LinkedIn ↗' : 'Open ↗'}</a></span></div>`
+                  : ''}
+              </div>
+              <div class="detail-section">
+                <div class="detail-label">Interactions</div>
+                <div class="ilist" id="ilist-${job.id}">
+                  <div class="no-interactions">Loading…</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('.job-row').forEach(row => {
+    row.addEventListener('click', () => toggleDetail(parseInt(row.dataset.id)));
+  });
+
+  if (expandedId) loadInteractions(expandedId);
+}
+
+function field(key, val) {
+  if (!val) return '';
+  return `<div class="detail-field"><span class="df-key">${key}</span><span class="df-val">${esc(val)}</span></div>`;
+}
+
+// ── Detail toggle ─────────────────────────────────────────────────────────────
+function toggleDetail(jobId) {
+  const closing = expandedId === jobId;
+
+  if (expandedId !== null) {
+    document.querySelector(`.job-row[data-id="${expandedId}"]`)?.classList.remove('expanded');
+    document.querySelector(`.detail-row[data-id="${expandedId}"]`)?.classList.remove('open');
+    const icon = document.querySelector(`.job-row[data-id="${expandedId}"] .expand-icon`);
+    if (icon) icon.textContent = '+';
+  }
+
+  expandedId = closing ? null : jobId;
+
+  if (expandedId !== null) {
+    document.querySelector(`.job-row[data-id="${expandedId}"]`)?.classList.add('expanded');
+    document.querySelector(`.detail-row[data-id="${expandedId}"]`)?.classList.add('open');
+    const icon = document.querySelector(`.job-row[data-id="${expandedId}"] .expand-icon`);
+    if (icon) icon.textContent = '−';
+    loadInteractions(expandedId);
+  }
+}
+
+// ── Interactions ──────────────────────────────────────────────────────────────
+async function loadInteractions(jobId) {
+  const listEl = document.getElementById(`ilist-${jobId}`);
+  if (!listEl) return;
+  try {
+    const res  = await fetch(`/jobs/${jobId}/interactions`);
+    const data = await res.json();
+    if (!data.interactions.length) {
+      listEl.innerHTML = '<div class="no-interactions">No interactions logged yet.</div>';
+      return;
+    }
+    listEl.innerHTML = data.interactions.map(i => `
+      <div class="iitem">
+        <span class="itype">${esc(i.type.replace(/_/g,' '))}</span>
+        <span class="inote">${esc(i.note || '')}</span>
+        <span class="idate">${fmtDate(i.occurred_at)}</span>
+      </div>`).join('');
+  } catch {
+    listEl.innerHTML = '<div class="no-interactions">Failed to load.</div>';
+  }
+}
+
+// ── Wire up filters ───────────────────────────────────────────────────────────
+document.getElementById('search-input').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(applyFilters, 250);
+});
+document.getElementById('workplace-filter').addEventListener('change', applyFilters);
+document.getElementById('date-from').addEventListener('change', applyFilters);
+document.getElementById('date-to').addEventListener('change', applyFilters);
+document.querySelectorAll('.status-checks input').forEach(cb => {
+  cb.addEventListener('change', applyFilters);
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadJobs();
+</script>
+</body>
+</html>

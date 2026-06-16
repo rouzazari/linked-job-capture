@@ -96,6 +96,11 @@ def add_job_page():
     return render_template("add_job.html")
 
 
+@app.get("/applied")
+def applied_page():
+    return render_template("applied.html")
+
+
 @app.post("/jobs")
 def save_job():
     data = request.get_json(force=True)
