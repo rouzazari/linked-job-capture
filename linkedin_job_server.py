@@ -304,7 +304,7 @@ def lookup_job():
     return jsonify(dict(row))
 
 
-VALID_STATUSES = {"saved", "interested", "applied", "skipped", "recruiter", "follow-up", "rejected"}
+VALID_STATUSES = {"saved", "interested", "applied", "skipped", "recruiter", "follow-up", "rejected", "closed"}
 
 
 @app.patch("/jobs/<int:job_id>/status")

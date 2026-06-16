@@ -184,6 +184,7 @@
     .s-recruiter  { background-color:#c8a84b1a; color:#c8a84b; border-color:#c8a84b30; }
     .s-follow-up  { background-color:#c26b4a1a; color:#c26b4a; border-color:#c26b4a30; }
     .s-rejected   { background-color:#a03a3a1a; color:#a03a3a; border-color:#a03a3a30; }
+    .s-closed     { background-color:#2a2a281a; color:#52504a; border-color:#52504a30; }
     /* make option text readable in dropdown */
     .status-select option { background: #1a1a18; color: var(--text); }
 
@@ -319,6 +320,7 @@
       <option value="follow-up">Follow-up</option>
       <option value="skipped">Skipped</option>
       <option value="rejected">Rejected</option>
+      <option value="closed">Closed</option>
     </select>
     <a href="/jobs/export/chatgpt" class="export-btn">↓ Export JSON</a>
     <button id="export-selected-btn" class="export-btn" style="display:none;border:none;cursor:pointer" onclick="exportSelected()">↓ Export Selected</button>
@@ -354,7 +356,7 @@ let expandedId = null;
 let searchTimer = null;
 const selectedIds = new Set();
 
-const STATUSES = ['saved', 'interested', 'applied', 'recruiter', 'follow-up', 'skipped', 'rejected'];
+const STATUSES = ['saved', 'interested', 'applied', 'recruiter', 'follow-up', 'skipped', 'rejected', 'closed'];
 const ITYPES   = ['applied', 'phone_screen', 'interview', 'recruiter_contact', 'offer', 'rejected', 'note'];
 
 // ── Utilities ─────────────────────────────────────────────────────────────────

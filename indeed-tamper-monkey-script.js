@@ -109,6 +109,7 @@
     recruiter:    "#c8a84b",
     "follow-up":  "#c26b4a",
     "rejected":   "#a03a3a",
+    "closed":     "#52504a",
   };
 
   let currentStatus = { html: "● checking…", color: "#555" };
