@@ -162,6 +162,48 @@
     .idate { color: var(--text-dim); white-space: nowrap; font-size: 11px; }
     .no-interactions { color: var(--text-dim); font-size: 12px; padding: 10px 0; font-style: italic; }
 
+    /* ── Interaction form ────────────────────────────────── */
+    .iform {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      gap: 8px; align-items: center;
+      margin-top: 16px;
+    }
+    .iform select, .iform input[type="text"], .iform input[type="datetime-local"] {
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px; padding: 6px 10px;
+      border-radius: 2px; outline: none;
+      transition: border-color 0.15s;
+    }
+    .iform select:focus, .iform input:focus { border-color: var(--border-bright); }
+    .iform input[type="datetime-local"] { color-scheme: dark; width: 168px; }
+    .iform input::placeholder { color: var(--text-dim); }
+    .iform select {
+      cursor: pointer; appearance: none; -webkit-appearance: none;
+      padding-right: 26px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%236b6856'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 9px center;
+    }
+    .iform select option { background: #1a1a18; color: var(--text); }
+    .btn {
+      background: var(--accent-bg); color: var(--accent);
+      border: 1px solid var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 6px 14px; border-radius: 2px;
+      cursor: pointer; transition: background 0.12s; white-space: nowrap;
+    }
+    .btn:hover { background: #3a2e0e; }
+    @media (max-width: 600px) {
+      .iform { grid-template-columns: 1fr 1fr; }
+      .iform input[type="text"] { grid-column: 1 / -1; }
+      .iform input[type="datetime-local"] { width: 100%; }
+    }
+
     /* ── Export links ────────────────────────────────────── */
     .export-links { display: flex; gap: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }
     .export-link {
@@ -256,13 +298,28 @@
     <span id="status-msg"></span>
   </div>
 
-  {% if job.about_job %}
-  <div class="section-label">About the job</div>
-  <div class="about-text">{{ job.about_job }}</div>
-  {% endif %}
-
   <div class="section-label">Interactions</div>
   <div id="ilist"><div class="no-interactions">Loading…</div></div>
+
+  <form class="iform" id="iform">
+    <select name="itype">
+      <option value="applied">applied</option>
+      <option value="phone_screen">phone screen</option>
+      <option value="interview">interview</option>
+      <option value="recruiter_contact">recruiter contact</option>
+      <option value="offer">offer</option>
+      <option value="rejected">rejected</option>
+      <option value="note">note</option>
+    </select>
+    <input type="text" name="note" placeholder="note (optional)">
+    <input type="datetime-local" name="occurred_at">
+    <button type="submit" class="btn">Log</button>
+  </form>
+
+  {% if job.about_job %}
+  <div class="section-label" style="margin-top:36px">About the job</div>
+  <div class="about-text">{{ job.about_job }}</div>
+  {% endif %}
 
   <div class="export-links">
     <a class="export-link" href="/jobs/{{ job.id }}/export/json">↓ JSON</a>
@@ -314,6 +371,42 @@ async function loadInteractions() {
     el.innerHTML = '<div class="no-interactions">Failed to load.</div>';
   }
 }
+
+// ── Interaction form ──────────────────────────────────────────────────────────
+function nowLocal() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const iform = document.getElementById('iform');
+iform.elements['occurred_at'].value = nowLocal();
+
+iform.addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = iform.querySelector('button');
+  btn.disabled = true; btn.textContent = 'Logging…';
+  const body = {
+    type:        iform.elements['itype'].value,
+    note:        iform.elements['note'].value.trim() || null,
+    occurred_at: iform.elements['occurred_at'].value || null,
+  };
+  try {
+    const res = await fetch(`/jobs/${jobId}/interactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error();
+    iform.elements['note'].value = '';
+    iform.elements['occurred_at'].value = nowLocal();
+    loadInteractions();
+  } catch {
+    alert('Failed to log interaction.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Log';
+  }
+});
 
 loadInteractions();
 </script>
