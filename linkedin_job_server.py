@@ -176,6 +176,15 @@ def search_jobs():
     return jsonify({"jobs": [dict(r) for r in rows], "count": len(rows)})
 
 
+@app.get("/jobs/<int:job_id>")
+def job_detail(job_id):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    if row is None:
+        return "Job not found", 404
+    return render_template("job.html", job=dict(row))
+
+
 @app.get("/jobs/<int:job_id>/markdown")
 def job_markdown(job_id):
     with get_conn() as conn:
@@ -368,4 +377,4 @@ def list_interactions(job_id):
 
 if __name__ == "__main__":
     init_db()
-    app.run(host="127.0.0.1", port=5055)
+    app.run(host="0.0.0.0", port=5055)

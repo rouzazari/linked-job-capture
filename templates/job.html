@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ job.title or 'Job' }} — {{ job.company or '' }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:            #0c0c0b;
+      --surface:       #131312;
+      --surface-hi:    #1a1a18;
+      --border:        #262622;
+      --border-dim:    #1c1c1a;
+      --border-bright: #38382f;
+      --text:          #ddd8c4;
+      --text-muted:    #6b6856;
+      --text-dim:      #3a3a35;
+      --accent:        #c8a84b;
+      --accent-bg:     #261f0e;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ──────────────────────────────────────────── */
+    .header {
+      border-bottom: 1px solid var(--border);
+      padding: 16px 28px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .logo {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 20px; color: var(--accent); letter-spacing: -0.3px;
+      text-decoration: none; white-space: nowrap;
+    }
+    .nav-links { display: flex; gap: 16px; margin-left: auto; }
+    .nav-link {
+      font-size: 11px; color: var(--text-muted);
+      text-decoration: none; letter-spacing: 0.04em; white-space: nowrap;
+    }
+    .nav-link:hover { color: var(--accent); }
+
+    /* ── Page layout ─────────────────────────────────────── */
+    .page { max-width: 860px; margin: 0 auto; padding: 36px 28px 80px; }
+
+    /* ── Hero ────────────────────────────────────────────── */
+    .hero { margin-bottom: 28px; }
+    .hero-title {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 26px; line-height: 1.2;
+      color: var(--text); margin-bottom: 6px;
+    }
+    .hero-company {
+      font-size: 15px; color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+    .hero-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+    .badge {
+      display: inline-block; font-size: 10px; font-weight: 500;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      padding: 3px 9px; border-radius: 2px; border: 1px solid;
+    }
+    .source-badge { color: var(--text-muted); border-color: var(--border-bright); background: var(--surface); }
+    .s-saved      { background-color:#4a8fa81a; color:#4a8fa8; border-color:#4a8fa830; }
+    .s-interested { background-color:#8b6cc41a; color:#8b6cc4; border-color:#8b6cc430; }
+    .s-applied    { background-color:#5aab721a; color:#5aab72; border-color:#5aab7230; }
+    .s-skipped    { background-color:#52504a1a; color:#52504a; border-color:#52504a30; }
+    .s-recruiter  { background-color:#c8a84b1a; color:#c8a84b; border-color:#c8a84b30; }
+    .s-follow-up  { background-color:#c26b4a1a; color:#c26b4a; border-color:#c26b4a30; }
+    .s-rejected   { background-color:#a03a3a1a; color:#a03a3a; border-color:#a03a3a30; }
+    .s-closed     { background-color:#2a2a281a; color:#52504a; border-color:#52504a30; }
+
+    /* ── Info grid ───────────────────────────────────────── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 32px;
+    }
+    .info-cell {
+      padding: 14px 16px;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .info-cell:nth-child(n) { border-bottom: 1px solid var(--border); }
+    .info-key {
+      font-size: 10px; font-weight: 500; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-dim); margin-bottom: 4px;
+    }
+    .info-val { font-size: 12px; color: var(--text); }
+    .info-val a { color: var(--accent); text-decoration: none; }
+    .info-val a:hover { text-decoration: underline; }
+
+    /* ── Status control ──────────────────────────────────── */
+    .status-row {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 32px;
+      padding: 14px 16px;
+      border: 1px solid var(--border); border-radius: 3px;
+      background: var(--surface);
+    }
+    .status-label { font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); }
+    select#status-select {
+      background: var(--surface-hi);
+      border: 1px solid var(--border-bright);
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px; padding: 5px 28px 5px 9px;
+      border-radius: 2px; outline: none; cursor: pointer;
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%236b6856'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 9px center;
+    }
+    select#status-select option { background: #1a1a18; }
+    #status-msg { font-size: 11px; color: var(--text-dim); }
+    #status-msg.ok  { color: #5aab72; }
+    #status-msg.err { color: #c26b4a; }
+
+    /* ── Section ─────────────────────────────────────────── */
+    .section-label {
+      font-size: 10px; font-weight: 500; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-dim);
+      margin-bottom: 14px; padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── About text ──────────────────────────────────────── */
+    .about-text {
+      font-size: 13px; line-height: 1.8;
+      color: var(--text); white-space: pre-wrap;
+      margin-bottom: 40px;
+    }
+
+    /* ── Interactions ────────────────────────────────────── */
+    .iitem {
+      display: flex; gap: 12px; align-items: baseline;
+      padding: 10px 0; border-bottom: 1px solid var(--border-dim);
+      font-size: 12px;
+    }
+    .iitem:last-child { border-bottom: none; }
+    .itype {
+      font-size: 10px; font-weight: 500; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--accent);
+      white-space: nowrap; min-width: 120px;
+    }
+    .inote { color: var(--text-muted); flex: 1; }
+    .idate { color: var(--text-dim); white-space: nowrap; font-size: 11px; }
+    .no-interactions { color: var(--text-dim); font-size: 12px; padding: 10px 0; font-style: italic; }
+
+    /* ── Export links ────────────────────────────────────── */
+    .export-links { display: flex; gap: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .export-link {
+      font-size: 11px; color: var(--text-muted); text-decoration: none;
+      letter-spacing: 0.05em; border: 1px solid var(--border-bright);
+      padding: 5px 12px; border-radius: 2px;
+    }
+    .export-link:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ── Responsive ──────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .header { padding: 14px 16px; }
+      .page   { padding: 24px 16px 60px; }
+      .hero-title { font-size: 21px; }
+      .info-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <a class="logo" href="/">Job Tracker</a>
+  <div class="nav-links">
+    <a class="nav-link" href="/">← all jobs</a>
+    <a class="nav-link" href="/applied">applications</a>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="hero">
+    <div class="hero-title">{{ job.title or 'Untitled' }}</div>
+    <div class="hero-company">{{ job.company or '—' }}</div>
+    <div class="hero-meta">
+      <span class="badge s-{{ (job.status or 'saved').replace(' ', '-') }}">{{ job.status or 'saved' }}</span>
+      {% if job.source %}
+        <span class="badge source-badge">{{ job.source }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="info-grid">
+    {% if job.location %}
+    <div class="info-cell">
+      <div class="info-key">Location</div>
+      <div class="info-val">{{ job.location }}</div>
+    </div>
+    {% endif %}
+    {% if job.workplace %}
+    <div class="info-cell">
+      <div class="info-key">Workplace</div>
+      <div class="info-val">{{ job.workplace }}</div>
+    </div>
+    {% endif %}
+    {% if job.employment_type %}
+    <div class="info-cell">
+      <div class="info-key">Type</div>
+      <div class="info-val">{{ job.employment_type }}</div>
+    </div>
+    {% endif %}
+    {% if job.salary %}
+    <div class="info-cell">
+      <div class="info-key">Salary</div>
+      <div class="info-val">{{ job.salary }}</div>
+    </div>
+    {% endif %}
+    {% if job.job_url %}
+    <div class="info-cell">
+      <div class="info-key">Posting</div>
+      <div class="info-val">
+        <a href="{{ job.job_url }}" target="_blank">
+          {% if job.source == 'linkedin' %}Open on LinkedIn ↗
+          {% elif job.source == 'indeed' %}Open on Indeed ↗
+          {% else %}Open ↗{% endif %}
+        </a>
+      </div>
+    </div>
+    {% endif %}
+    <div class="info-cell">
+      <div class="info-key">Saved</div>
+      <div class="info-val">{{ job.created_at[:10] if job.created_at else '—' }}</div>
+    </div>
+  </div>
+
+  <div class="status-row">
+    <span class="status-label">Status</span>
+    <select id="status-select">
+      {% for s in ['saved','interested','applied','recruiter','follow-up','skipped','rejected','closed'] %}
+      <option value="{{ s }}" {{ 'selected' if job.status == s else '' }}>{{ s }}</option>
+      {% endfor %}
+    </select>
+    <span id="status-msg"></span>
+  </div>
+
+  {% if job.about_job %}
+  <div class="section-label">About the job</div>
+  <div class="about-text">{{ job.about_job }}</div>
+  {% endif %}
+
+  <div class="section-label">Interactions</div>
+  <div id="ilist"><div class="no-interactions">Loading…</div></div>
+
+  <div class="export-links">
+    <a class="export-link" href="/jobs/{{ job.id }}/export/json">↓ JSON</a>
+    <a class="export-link" href="/jobs/{{ job.id }}/markdown">↓ Markdown</a>
+  </div>
+
+</div>
+
+<script>
+const jobId = {{ job.id }};
+
+// ── Status ────────────────────────────────────────────────────────────────────
+document.getElementById('status-select').addEventListener('change', async function () {
+  const msg = document.getElementById('status-msg');
+  msg.textContent = 'saving…'; msg.className = '';
+  try {
+    const res = await fetch(`/jobs/${jobId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: this.value }),
+    });
+    if (!res.ok) throw new Error();
+    msg.textContent = 'saved'; msg.className = 'ok';
+    setTimeout(() => { msg.textContent = ''; }, 1800);
+  } catch {
+    msg.textContent = 'failed'; msg.className = 'err';
+  }
+});
+
+// ── Interactions ──────────────────────────────────────────────────────────────
+async function loadInteractions() {
+  const el = document.getElementById('ilist');
+  try {
+    const res  = await fetch(`/jobs/${jobId}/interactions`);
+    const data = await res.json();
+    if (!data.interactions.length) {
+      el.innerHTML = '<div class="no-interactions">No interactions logged yet.</div>';
+      return;
+    }
+    el.innerHTML = data.interactions.map(i => {
+      const d = i.occurred_at ? new Date(i.occurred_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'2-digit' }) : '—';
+      return `<div class="iitem">
+        <span class="itype">${i.type.replace(/_/g,' ')}</span>
+        <span class="inote">${i.note || ''}</span>
+        <span class="idate">${d}</span>
+      </div>`;
+    }).join('');
+  } catch {
+    el.innerHTML = '<div class="no-interactions">Failed to load.</div>';
+  }
+}
+
+loadInteractions();
+</script>
+</body>
+</html>
