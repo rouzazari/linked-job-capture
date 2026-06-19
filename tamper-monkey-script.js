@@ -185,8 +185,12 @@
           const job = JSON.parse(response.responseText);
           const color = STATUS_COLORS[job.status] || "#888";
           setStatus("● " + job.status, color);
+          const link = document.getElementById("lj-view-link");
+          if (link) { link.href = "http://127.0.0.1:5055/jobs/" + job.id; link.style.display = "inline"; }
         } else if (response.status === 404) {
           setStatus("● not saved", "#444");
+          const link = document.getElementById("lj-view-link");
+          if (link) link.style.display = "none";
         } else {
           setStatus("● server error", "#c26b4a");
         }
@@ -276,14 +280,29 @@
     const divider = document.createElement("div");
     divider.style.cssText = "height:1px;background:#262622;margin-bottom:8px";
 
+    const statusRow = document.createElement("div");
+    statusRow.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:1px 0";
+
     const statusEl = document.createElement("div");
     statusEl.id = "lj-status";
-    statusEl.style.cssText = "font-size:11px;letter-spacing:0.05em;color:#555;padding:1px 0";
+    statusEl.style.cssText = "font-size:11px;letter-spacing:0.05em;color:#555";
     statusEl.textContent = "● checking…";
+
+    const viewLink = document.createElement("a");
+    viewLink.id = "lj-view-link";
+    viewLink.target = "_blank";
+    viewLink.rel = "noopener noreferrer";
+    viewLink.textContent = "view →";
+    viewLink.style.cssText = "font-size:11px;letter-spacing:0.05em;color:#c8a84b;text-decoration:none;display:none";
+    viewLink.onmouseenter = () => { viewLink.style.textDecoration = "underline"; };
+    viewLink.onmouseleave = () => { viewLink.style.textDecoration = "none"; };
+
+    statusRow.appendChild(statusEl);
+    statusRow.appendChild(viewLink);
 
     panel.appendChild(btnRow);
     panel.appendChild(divider);
-    panel.appendChild(statusEl);
+    panel.appendChild(statusRow);
     document.body.appendChild(panel);
 
     checkStatus();
@@ -297,6 +316,8 @@
       lastHref = location.href;
       const saveBtn = document.getElementById("lj-save-btn");
       if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Job"; }
+      const viewLink = document.getElementById("lj-view-link");
+      if (viewLink) viewLink.style.display = "none";
       checkStatus();
     }
   }, 1500);
