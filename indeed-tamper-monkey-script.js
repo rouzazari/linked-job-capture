@@ -17,84 +17,81 @@
     return new URLSearchParams(location.search).get("jk") || null;
   }
 
-  function getTitle() {
-    const el =
-      document.querySelector('[data-testid="jobsearch-JobInfoHeader-title"]') ||
-      document.querySelector("h1.jobsearch-JobInfoHeader-title") ||
-      document.querySelector("h1");
-    return el ? clean(el.innerText) : null;
-  }
+  // Indeed's job-view page is rendered with hashed/atomic CSS classes that
+  // change on every deploy, so DOM selectors are not viable. The page does
+  // reliably embed a schema.org JobPosting as JSON-LD — use that instead.
 
-  function getCompany() {
-    const el =
-      document.querySelector('[data-testid="inlineHeader-companyName"]') ||
-      document.querySelector('[data-testid="jobsearch-JobInfoHeader-companyName"]') ||
-      document.querySelector('[data-company-name="true"]');
-    return el ? clean(el.innerText) : null;
-  }
-
-  function getLocation() {
-    const el =
-      document.querySelector('[data-testid="job-location"]') ||
-      document.querySelector('[data-testid="jobsearch-JobInfoHeader-locationText"]') ||
-      document.querySelector(".jobsearch-JobInfoHeader-subtitle .icl-u-xs-mt--xs");
-    return el ? clean(el.innerText) : null;
-  }
-
-  function getJobDescription() {
-    const el =
-      document.getElementById("jobDescriptionText") ||
-      document.querySelector('[id*="jobDescriptionText"]') ||
-      document.querySelector(".jobsearch-jobDescriptionText");
-    return el ? clean(el.innerText) : null;
-  }
-
-  function getAttributeSnippets() {
-    const snippets = document.querySelectorAll(
-      '[data-testid="attribute_snippet_testid"], ' +
-      '[data-testid="jobsearch-JobMetadataHeader--item"], ' +
-      '.jobsearch-JobMetadataHeader-item'
-    );
-    return Array.from(snippets).map(el => clean(el.innerText)).filter(Boolean);
-  }
-
-  function parseWorkplaceAndType(attrs) {
-    const workplaceTypes = ["Remote", "Hybrid", "On-site"];
-    const employmentTypes = ["Full-time", "Part-time", "Contract", "Temporary", "Internship", "Casual"];
-    const text = attrs.join(" ");
-    return {
-      workplace:       workplaceTypes.find(t => text.includes(t)) || null,
-      employment_type: employmentTypes.find(t => text.includes(t)) || null,
-    };
-  }
-
-  function parseSalary(attrs) {
-    const patterns = [
-      /\$[\d,]+(?:\.\d+)?\s*[–—\-]\s*\$[\d,]+(?:\.\d+)?(?:\s*(?:a year|\/year|per year|an hour|\/hour|per hour))?/i,
-      /\$[\d,]+(?:\.\d+)?\s*(?:a year|\/year|per year|an hour|\/hour|per hour)/i,
-    ];
-    const text = attrs.join(" ");
-    for (const p of patterns) {
-      const m = text.match(p);
-      if (m) return clean(m[0]);
+  function getJobPosting() {
+    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+    for (const script of scripts) {
+      let data;
+      try { data = JSON.parse(script.textContent); } catch (e) { continue; }
+      if (data && data["@type"] === "JobPosting") return data;
     }
     return null;
   }
 
+  function htmlToText(html) {
+    const el = document.createElement("div");
+    el.innerHTML = html || "";
+    return clean(el.innerText || el.textContent);
+  }
+
+  function formatLocation(jobLocation) {
+    const address = jobLocation && jobLocation.address;
+    if (!address) return null;
+    const cityState = clean([address.addressLocality, address.addressRegion].filter(Boolean).join(", "));
+    return cityState || address.addressCountry || null;
+  }
+
+  function formatWorkplace(posting) {
+    return posting.jobLocationType === "TELECOMMUTE" ? "Remote" : null;
+  }
+
+  const EMPLOYMENT_TYPE_LABELS = {
+    FULL_TIME:  "Full-time",
+    PART_TIME:  "Part-time",
+    CONTRACTOR: "Contract",
+    TEMPORARY:  "Temporary",
+    INTERN:     "Internship",
+    PER_DIEM:   "Per diem",
+    VOLUNTEER:  "Volunteer",
+    OTHER:      "Other",
+  };
+
+  function formatEmploymentType(posting) {
+    const type = posting.employmentType && posting.employmentType[0];
+    return type ? (EMPLOYMENT_TYPE_LABELS[type] || type) : null;
+  }
+
+  const SALARY_UNIT_LABELS = { YEAR: "a year", HOUR: "an hour", MONTH: "a month", WEEK: "a week", DAY: "a day" };
+
+  function formatSalary(posting) {
+    const value = posting.baseSalary && posting.baseSalary.value;
+    if (!value) return null;
+    const currency = posting.baseSalary.currency === "USD" ? "$" : ((posting.baseSalary.currency || "") + " ");
+    const unit = SALARY_UNIT_LABELS[value.unitText] || "";
+    const fmt = n => Number(n).toLocaleString("en-US");
+    if (value.minValue != null && value.maxValue != null && value.minValue !== value.maxValue) {
+      return clean(`${currency}${fmt(value.minValue)} - ${currency}${fmt(value.maxValue)} ${unit}`);
+    }
+    const single = value.value != null ? value.value : (value.minValue != null ? value.minValue : value.maxValue);
+    return single != null ? clean(`${currency}${fmt(single)} ${unit}`) : null;
+  }
+
   function getJobData() {
-    const attrs = getAttributeSnippets();
-    const { workplace, employment_type } = parseWorkplaceAndType(attrs);
+    const posting = getJobPosting();
     return {
       source:          "indeed",
       job_id:          getIndeedJobId(),
       job_url:         location.href,
-      title:           getTitle(),
-      company:         getCompany(),
-      location:        getLocation(),
-      workplace,
-      employment_type,
-      salary:          parseSalary(attrs),
-      about_job:       getJobDescription(),
+      title:           posting ? clean(posting.title) : clean(document.title.split(" - ")[0]) || null,
+      company:         posting && posting.hiringOrganization ? clean(posting.hiringOrganization.name) : null,
+      location:        posting ? formatLocation(posting.jobLocation) : null,
+      workplace:       posting ? formatWorkplace(posting) : null,
+      employment_type: posting ? formatEmploymentType(posting) : null,
+      salary:          posting ? formatSalary(posting) : null,
+      about_job:       posting ? htmlToText(posting.description) : null,
       captured_at:     new Date().toISOString(),
     };
   }
