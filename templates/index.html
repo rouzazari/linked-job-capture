@@ -126,6 +126,18 @@
     /* ── Table ───────────────────────────────────────────── */
     .table-wrap { padding: 0 28px 60px; overflow-x: auto; }
 
+    .pager {
+      display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+      padding: 14px 0 0;
+      font-size: 11px; color: var(--text-muted); letter-spacing: 0.04em;
+    }
+    .pager:empty { display: none; }
+    .pager .pager-info { margin-right: auto; }
+    .pager button { cursor: pointer; padding: 4px 9px; }
+    .pager button:disabled { opacity: 0.35; cursor: default; }
+    .pager button:disabled:hover { border-color: var(--border-bright); color: var(--text-muted); }
+    .pager button.current { border-color: var(--accent); color: var(--accent); }
+
     table { width: 100%; border-collapse: collapse; }
 
     thead th {
@@ -345,6 +357,7 @@
       <tr class="state-row"><td colspan="7">Loading…</td></tr>
     </tbody>
   </table>
+  <div class="pager" id="pager"></div>
 </div>
 
 <div id="toast"></div>
@@ -355,6 +368,8 @@ let allJobs = [];
 let filteredJobs = [];
 let expandedId = null;
 let searchTimer = null;
+let currentPage = 1;
+const PAGE_SIZE = 25;
 const selectedIds = new Set();
 
 const STATUSES = ['saved', 'interested', 'applied', 'recruiter', 'follow-up', 'skipped', 'rejected', 'closed'];
@@ -414,6 +429,7 @@ async function loadJobs(q = '') {
     const url = q ? `/jobs/search?q=${encodeURIComponent(q)}` : '/jobs';
     const data = await api('GET', url);
     allJobs = data.jobs;
+    currentPage = 1;
     applyFilters();
     renderStats();
   } catch {
@@ -446,10 +462,18 @@ function renderTable() {
   const tbody = document.getElementById('jobs-tbody');
   if (!filteredJobs.length) {
     tbody.innerHTML = '<tr class="state-row"><td colspan="7">No jobs found.</td></tr>';
+    renderPager();
+    syncSelectAll();
     return;
   }
 
-  tbody.innerHTML = filteredJobs.map((job, i) => {
+  const totalPages = Math.ceil(filteredJobs.length / PAGE_SIZE);
+  currentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const pageJobs = filteredJobs.slice(start, start + PAGE_SIZE);
+  if (expandedId && !pageJobs.find(j => j.id === expandedId)) expandedId = null;
+
+  tbody.innerHTML = pageJobs.map((job, i) => {
     const open = job.id === expandedId;
     const sc   = statusClass(job.status);
     const opts = STATUSES.map(s =>
@@ -543,9 +567,48 @@ function renderTable() {
 
   syncSelectAll();
   updateExportBtn();
+  renderPager();
 
   // Load interactions for open row
   if (expandedId) loadInteractions(expandedId);
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+function pageNumbers(cur, total) {
+  // First, last, and a window around the current page; null marks a gap.
+  const pages = [];
+  for (let p = 1; p <= total; p++) {
+    if (p === 1 || p === total || Math.abs(p - cur) <= 2) pages.push(p);
+    else if (pages[pages.length - 1] !== null) pages.push(null);
+  }
+  return pages;
+}
+
+function renderPager() {
+  const pager = document.getElementById('pager');
+  const total = filteredJobs.length;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  if (totalPages <= 1) { pager.innerHTML = ''; return; }
+
+  const start = (currentPage - 1) * PAGE_SIZE + 1;
+  const end   = Math.min(currentPage * PAGE_SIZE, total);
+  const btn = (label, page, opts = {}) =>
+    `<button class="export-btn${opts.current ? ' current' : ''}" ${opts.disabled ? 'disabled' : ''} onclick="goToPage(${page})">${label}</button>`;
+
+  pager.innerHTML =
+    `<span class="pager-info">${start}–${end} of ${total}</span>` +
+    btn('‹ prev', currentPage - 1, { disabled: currentPage === 1 }) +
+    pageNumbers(currentPage, totalPages).map(p =>
+      p === null ? '<span>…</span>' : btn(p, p, { current: p === currentPage })
+    ).join('') +
+    btn('next ›', currentPage + 1, { disabled: currentPage === totalPages });
+}
+
+function goToPage(page) {
+  currentPage = page;
+  expandedId = null;
+  renderTable();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function syncSelectAll() {
@@ -676,7 +739,10 @@ document.getElementById('search-input').addEventListener('input', e => {
   searchTimer = setTimeout(() => loadJobs(q), 300);
 });
 
-document.getElementById('status-filter').addEventListener('change', applyFilters);
+document.getElementById('status-filter').addEventListener('change', () => {
+  currentPage = 1;
+  applyFilters();
+});
 
 document.getElementById('select-all-cb').addEventListener('change', e => {
   const checked = e.target.checked;
