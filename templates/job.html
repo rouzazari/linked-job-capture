@@ -50,6 +50,7 @@
       text-decoration: none; letter-spacing: 0.04em; white-space: nowrap;
     }
     .nav-link:hover { color: var(--accent); }
+    .nav-link.danger:hover { color: #c26b4a; }
 
     /* ── Page layout ─────────────────────────────────────── */
     .page { max-width: 860px; margin: 0 auto; padding: 36px 28px 80px; }
@@ -229,6 +230,7 @@
   <div class="nav-links">
     <a class="nav-link" href="/">← all jobs</a>
     <a class="nav-link" href="/applied">applications</a>
+    <a class="nav-link danger" href="#" id="delete-link">delete</a>
   </div>
 </div>
 
@@ -409,6 +411,20 @@ iform.addEventListener('submit', async e => {
 });
 
 loadInteractions();
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+document.getElementById('delete-link').addEventListener('click', async e => {
+  e.preventDefault();
+  const title = {{ (job.title or 'this job') | tojson }};
+  if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`/jobs/${jobId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error();
+    window.location.href = '/';
+  } catch {
+    alert('Failed to delete job.');
+  }
+});
 </script>
 </body>
 </html>

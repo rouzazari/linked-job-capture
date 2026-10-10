@@ -185,6 +185,16 @@ def job_detail(job_id):
     return render_template("job.html", job=dict(row))
 
 
+@app.delete("/jobs/<int:job_id>")
+def delete_job(job_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM interactions WHERE job_id = ?", (job_id,))
+        result = conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+    if result.rowcount == 0:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True})
+
+
 @app.get("/jobs/<int:job_id>/markdown")
 def job_markdown(job_id):
     with get_conn() as conn:
